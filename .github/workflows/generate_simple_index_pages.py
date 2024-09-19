@@ -1,6 +1,7 @@
 import requests
 import os
 import argparse
+from jinja2 import Template
 
 # Automatically get the repository name in the format "owner/repo" from the GitHub workflow environment
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
@@ -31,25 +32,32 @@ def list_python_wheels():
 
     return wheel_files
 
+
 def generate_simple_index(wheels):
-    html_content = """
+    # Jinja2 template as a string
+    template_str = """
     <!DOCTYPE html>
     <html>
-      <head><title>Links for {repo}</title></head>
-      <body>
-        <h1>Links for {repo}</h1>
-    """.format(repo=GITHUB_REPO)
+    <head><title>Links for {{ repo_name }}</title></head>
+    <body>
+    <h1>Links for {{ repo_name }}</h1>
 
-    # Add links for each wheel
-    for wheel in wheels:
-        html_content += f'<a href="{wheel["download_url"]}">{wheel["wheel_name"]}</a><br/>\n'
+    {% for wheel in wheels %}
+    <a href="{{ wheel.download_url }}">{{ wheel.wheel_name }}</a><br/>
+    {% endfor %}
 
-    html_content += """
-      </body>
+    </body>
     </html>
     """
 
+    # Create a Jinja2 Template object from the string
+    template = Template(template_str)
+
+    # Render the HTML with the data (repo name and wheels)
+    html_content = template.render(repo_name=GITHUB_REPO, wheels=wheels)
+
     return html_content
+
 
 
 if __name__ == "__main__":
