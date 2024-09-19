@@ -29,7 +29,7 @@ jobs:
           python -m pip install requests
       # call the script to generate the simple index pages
       - name: Generate Simple Index Pages
-        run: python .github/workflows/generate_simple_index_pages.py --output-dir ./whl
+        run: python .github/workflows/generate_simple_index_pages.py --outdir ./whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
 
