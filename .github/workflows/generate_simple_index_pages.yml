@@ -6,7 +6,8 @@ name: Update wheels index pages
 # trigger manually on github interface
 on:
   workflow_dispatch:
-
+  push:
+    branches: [generate_wheels_simple_index_pages]
 
 jobs:
   deploy:
