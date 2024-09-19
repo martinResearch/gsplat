@@ -23,7 +23,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-      
+     
+      - name: Install dependencies
+        run: |
+          python -m pip install requests
       # call the script to generate the simple index pages
       - name: Generate Simple Index Pages
         run: python .github/workflows/generate_simple_index_pages.py --output-dir ./whl
