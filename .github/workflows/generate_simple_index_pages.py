@@ -89,6 +89,7 @@ def generate_simple_index_htmls(wheels, outdir):
     
     # Render the HTML the list the package names
     html_content = template_packages.render(package_name=packages.keys())
+    os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "index.html"), "w") as file:
         file.write(html_content)
 
