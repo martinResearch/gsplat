@@ -70,7 +70,9 @@ def generate_simple_index_htmls(wheels, outdir):
     template_packages_str = """
     <html>
     <body>
+    {% for package_name in package_names %}
         <a href="{{package_name}}/">{{package_name}}</a><br/>
+    {% endfor %}
     </body>
     </html>
     """
@@ -88,7 +90,7 @@ def generate_simple_index_htmls(wheels, outdir):
         packages[package_name].append(wheel)
     
     # Render the HTML the list the package names
-    html_content = template_packages.render(package_name=[str(k) for k in packages.keys()])
+    html_content = template_packages.render(package_names=[str(k) for k in packages.keys()])
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "index.html"), "w") as file:
         file.write(html_content)
