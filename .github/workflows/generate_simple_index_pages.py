@@ -55,9 +55,9 @@ def generate_simple_index_htmls(wheels, outdir):
     template_versions_str = """
     <!DOCTYPE html>
     <html>
-    <head><title>Links for {{ repo_name }}</title></head>
+    <head><title>Python wheels links for {{ repo_name }}</title></head>
     <body>
-    <h1>Links for {{ repo_name }}</h1>
+    <h1>Python wheels for {{ repo_name }}</h1>
 
     {% for wheel in wheels %}
     <a href="{{ wheel.download_url }}">{{ wheel.wheel_name }}</a><br/>
