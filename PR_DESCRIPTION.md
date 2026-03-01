@@ -90,11 +90,11 @@ Each job builds 4 wheels (one per Python), taking ~16 minutes total:
 | 4 | Windows | cu124 | cu124 | ~14 min | ~30s each |
 | 5 | Windows | cu126 | cu126 | ~14 min | ~30s each |
 
-### Test jobs (36)
+### Test jobs (35)
 
 - **20 same-version tests**: Each wheel tested with torch 2.6.0 from its matching CUDA index
-- **16 backward compat discovery** (allow-failure): cu124 wheels tested with older PyTorch on both Linux and Windows:
-  - torch 2.5.0: py3.10–3.13 × 2 OS = 8 jobs
+- **15 backward compat discovery** (allow-failure): cu124 wheels tested with older PyTorch on both Linux and Windows:
+  - torch 2.5.0: py3.10–3.13 Linux + py3.10–3.12 Windows = 7 jobs (no cp313 Windows wheels)
   - torch 2.4.0: py3.10–3.12 × 2 OS = 6 jobs (no cp313)
   - torch 2.3.0: py3.10 × 2 OS = 2 jobs (expected to fail — ABI break)
 
@@ -156,14 +156,13 @@ Same cu124 wheel (built for PyTorch 2.6) tested with an older PyTorch runtime.
 | Windows | 3.10 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.11 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.12 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.13 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.10 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.11 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.12 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
 
 Same wheels as in the primary table — no separate wheel built for older PyTorch.
 
-Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels). All backward compat CI tests use `continue-on-error: true` so they don't block the build — but they pass consistently.
+Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels on either OS). PyTorch 2.5.0 has cp313 on Linux but not Windows. All backward compat CI tests use `continue-on-error: true` so they don't block the build — but they pass consistently.
 
 ### Unsupported configurations
 
@@ -197,7 +196,7 @@ All supported configurations are now CI-tested across all Python versions. The o
 
 - **`setup.py`** — Added `GSPLAT_PRECOMPILED_OBJECTS` support: when set, only compiles `ext.cpp` and links precompiled `.o`/`.obj` files. Also fixes CUDA_HOME cache stale-read issue and Windows `.lib` filtering for `extra_objects`.
 
-- **`.github/workflows/building.yml`** — Complete rewrite: 5-job build matrix with object reuse, 36-job test matrix, backward compat discovery.
+- **`.github/workflows/building.yml`** — Complete rewrite: 5-job build matrix with object reuse, 35-job test matrix, backward compat discovery.
 
 - **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cu126 case (CUDA 12.6.3).
 - **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added cu126 environment variables.

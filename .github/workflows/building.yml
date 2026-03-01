@@ -357,7 +357,7 @@ jobs:
             torch-version: '2.3.0'
             discovery: true
 
-          # Windows — torch 2.5.0 (py3.10–3.13)
+          # Windows — torch 2.5.0 (py3.10–3.12, no cp313 Windows wheels)
           - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu121
@@ -374,12 +374,6 @@ jobs:
             build-cuda-version: cu124
             torch-cuda-version: cu121
             python-version: '3.12'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.13'
             torch-version: '2.5.0'
             discovery: true
 
