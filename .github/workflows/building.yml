@@ -302,6 +302,8 @@ jobs:
           # --- Backward compat discovery (allow-failure) ---
           # These use cu124 build wheels + cu121 torch index (2.5 and
           # older still have cu121 wheels, unlike 2.6+).
+
+          # Linux — torch 2.5.0 (py3.10–3.13)
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu121
@@ -311,10 +313,98 @@ jobs:
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu121
+            python-version: '3.11'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.12'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.13'
+            torch-version: '2.5.0'
+            discovery: true
+
+          # Linux — torch 2.4.0 (py3.10–3.12, no cp313)
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
             python-version: '3.10'
             torch-version: '2.4.0'
             discovery: true
           - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.11'
+            torch-version: '2.4.0'
+            discovery: true
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.12'
+            torch-version: '2.4.0'
+            discovery: true
+
+          # Linux — torch 2.3.0 (py3.10 only, unsupported — ABI break)
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.3.0'
+            discovery: true
+
+          # Windows — torch 2.5.0 (py3.10–3.13)
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.11'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.12'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.13'
+            torch-version: '2.5.0'
+            discovery: true
+
+          # Windows — torch 2.4.0 (py3.10–3.12, no cp313)
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.4.0'
+            discovery: true
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.11'
+            torch-version: '2.4.0'
+            discovery: true
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.12'
+            torch-version: '2.4.0'
+            discovery: true
+
+          # Windows — torch 2.3.0 (py3.10 only, unsupported — ABI break)
+          - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu121
             python-version: '3.10'

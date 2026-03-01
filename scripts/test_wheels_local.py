@@ -2,32 +2,63 @@
 """Test precompiled gsplat wheels locally across Python × PyTorch × CUDA combos.
 
 Requires:
-  - uv (https://docs.astral.sh/uv/getting-started/installation/)
-  - An NVIDIA GPU with a recent driver
+  - uv  (https://docs.astral.sh/uv/getting-started/installation/)
+  - An NVIDIA GPU with a recent driver (for GPU tests; use --no-gpu to skip)
 
-Usage:
-  # Run the full matrix (all combos) from local wheel files:
-  python scripts/test_wheels_local.py --wheel-dir dist/
+Quick start — download from CI and test:
 
-  # Test a specific combo:
-  python scripts/test_wheels_local.py --wheel-dir dist/ --python 3.12 --torch 2.6.0 --cuda cu121
+  # Download wheels from a CI run and test them (requires `gh` CLI):
+  python scripts/test_wheels_local.py --gh-run-id 22547387037
 
-  # Test wheels from a GitHub Pages index (auto-selects cu11/cu12 per test case):
+  # Same but smoke test only (no GPU needed):
+  python scripts/test_wheels_local.py --gh-run-id 22547387037 --no-gpu
+
+  # Test a single combo:
+  python scripts/test_wheels_local.py --gh-run-id 22547387037 --python 3.12 --cuda cu124
+
+Test from the published wheel index (after a GitHub Release):
+
+  # Test wheels from the GitHub Pages index:
+  python scripts/test_wheels_local.py --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124/
+
+  # Test all CUDA variants automatically:
   python scripts/test_wheels_local.py --index-base-url https://martinresearch.github.io/gsplat/whl
 
-  # Test a single CUDA variant from a specific index URL:
-  python scripts/test_wheels_local.py --index-url https://martinresearch.github.io/gsplat/whl/pt23to26.cu12
+Test from local wheel files:
 
-  # Quick smoke test only (no GPU tests):
-  python scripts/test_wheels_local.py --wheel-dir dist/ --no-gpu
+  # If you already downloaded wheels to a directory:
+  python scripts/test_wheels_local.py --wheel-dir dist/
 
-  # Run the full pytest suite from the repo:
+  # Test a specific CUDA variant:
+  python scripts/test_wheels_local.py --wheel-dir dist/ --cuda cu126
+
+Other options:
+
+  # Run the full pytest suite from the repo (requires GPU):
   python scripts/test_wheels_local.py --wheel-dir dist/ --full-tests
+
+How it works:
+  For each (Python, PyTorch, CUDA) combo, the script:
+    1. Creates a temporary virtual environment with `uv venv`
+    2. Installs PyTorch from the matching CUDA index
+    3. Installs the gsplat wheel (from local file, CI artifact, or index)
+    4. Runs a smoke test (symbol check, API imports, enum/class checks)
+    5. Optionally runs GPU forward+backward pass on test_garden.npz
+    6. Deletes the temporary venv
+
+  Each venv is fully isolated and cleaned up automatically.
+
+  Default matrix (no --torch/--cuda/--python filters):
+    Windows: 15 tests — 8 primary (4 Py × 2 CUDA) + 7 compat (4+3 Py × cu124)
+    Linux:   27 tests — 12 primary (4 Py × 3 CUDA) + 7 compat + 8 cu118 compat
+
+  Quick run (build version only):
+    python scripts/test_wheels_local.py ... --torch 2.6.0
 """
 
 import argparse
-import itertools
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -41,16 +72,18 @@ from pathlib import Path
 
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 
-# PyTorch versions and their supported CUDA variants + min Python
+# PyTorch versions and their supported CUDA variants + max Python.
+# Wheels are built against PyTorch 2.6.0 only, but are backward compatible
+# with 2.4+ (2.3.0 has an ABI break in c10::SmallVectorBase::grow_pod).
+#
+# When --torch is not specified, ALL versions below are tested (full matrix).
+# Use --torch 2.6.0 to test only the build version for a quicker run.
 TORCH_CUDA_MATRIX = {
-    "2.3.0": {"cuda": ["cu118", "cu121"], "max_python": "3.12"},
-    "2.4.0": {"cuda": ["cu118", "cu121"], "max_python": "3.12"},
-    "2.5.0": {"cuda": ["cu118", "cu121"], "max_python": "3.13"},
-    "2.6.0": {"cuda": ["cu118", "cu121"], "max_python": "3.13"},
+    "2.6.0": {"cuda": ["cu118", "cu124", "cu126"], "max_python": "3.13"},
+    # Backward compat: same cu124 wheels (built for 2.6) tested with older torch.
+    "2.5.0": {"cuda": ["cu124"], "max_python": "3.13"},
+    "2.4.0": {"cuda": ["cu124"], "max_python": "3.12"},
 }
-
-# Mapping from cu* to wheel index suffix
-CUDA_TO_WHEEL_TAG = {"cu118": "cu11", "cu121": "cu12"}
 
 EXPECTED_SYMBOLS = [
     "null",
@@ -106,6 +139,46 @@ def find_uv() -> str:
     return uv
 
 
+def download_wheels_from_ci(run_id: str, dest_dir: str) -> None:
+    """Download wheel artifacts from a GitHub Actions CI run using `gh`."""
+    gh = shutil.which("gh")
+    if not gh:
+        print("ERROR: 'gh' CLI not found. Install it: https://cli.github.com/")
+        sys.exit(1)
+
+    print(f"Downloading wheels from CI run {run_id} to {dest_dir}...")
+    result = run(
+        [gh, "run", "download", run_id, "--pattern", "compiled_wheels-*", "--dir", dest_dir],
+        check=False,
+    )
+    if result.returncode != 0:
+        print(f"ERROR: Failed to download artifacts from run {run_id}")
+        if result.stderr:
+            print(result.stderr)
+        sys.exit(1)
+
+    # Count downloaded wheels
+    wheels = list(Path(dest_dir).rglob("*.whl"))
+    if not wheels:
+        print(f"ERROR: No .whl files found in {dest_dir}")
+        sys.exit(1)
+    print(f"  Downloaded {len(wheels)} wheel(s)")
+
+    # Flatten: move all .whl files to dest_dir root (gh downloads into subdirs)
+    for whl in wheels:
+        target = Path(dest_dir) / whl.name
+        if whl.parent != Path(dest_dir):
+            whl.rename(target)
+
+    # Clean up empty subdirectories
+    for d in sorted(Path(dest_dir).iterdir(), reverse=True):
+        if d.is_dir():
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+
+
 def build_matrix(args) -> list[TestCase]:
     """Build the list of test cases from args or full matrix."""
     if args.python and args.torch and args.cuda:
@@ -124,8 +197,8 @@ def build_matrix(args) -> list[TestCase]:
                 # Skip unsupported Python versions
                 if py > info["max_python"]:
                     continue
-                # Skip Windows cu118 (PyTorch doesn't publish those for 2.4+)
-                if sys.platform == "win32" and cuda == "cu118" and torch_ver >= "2.4.0":
+                # Skip Windows cu118 — we don't build cu118 wheels for Windows
+                if sys.platform == "win32" and cuda == "cu118":
                     continue
                 cases.append(TestCase(python=py, torch=torch_ver, cuda=cuda))
     return cases
@@ -191,6 +264,13 @@ def build_smoke_test_script(test_gpu: bool, full_tests: bool, repo_root: str) ->
             "means, quats, scales, opacities, colors, viewmats, Ks, width, height = load_test_data(",
             "    device=torch.device('cuda:0'), data_path=data_path)",
             "",
+            "# Enable gradients for backward pass check",
+            "means.requires_grad_(True)",
+            "quats.requires_grad_(True)",
+            "scales.requires_grad_(True)",
+            "opacities.requires_grad_(True)",
+            "colors.requires_grad_(True)",
+            "",
             "# Run a forward pass through the full rasterization pipeline",
             "from gsplat import rasterization",
             "renders, alphas, info = rasterization(",
@@ -225,6 +305,7 @@ def run_test_case(
     case: TestCase,
     wheel_dir: str | None,
     index_url: str | None,
+    version: str | None,
     test_gpu: bool,
     full_tests: bool,
     repo_root: str,
@@ -269,15 +350,16 @@ def run_test_case(
         # 3. Install gsplat wheel
         print(f"\n[3/5] Installing gsplat wheel...")
         if wheel_dir:
-            # Install from local wheel files
-            wheel_tag = CUDA_TO_WHEEL_TAG[case.cuda]
-            # Find matching wheel: look for cu11 or cu12 in the filename
-            wheel_files = list(Path(wheel_dir).glob(f"gsplat-*{wheel_tag}*.whl"))
+            # Install from local wheel files using full CUDA tags (e.g. cu124, cu126)
+            # Wheel names look like: gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl
+            py_tag = f"cp{case.python.replace('.', '')}"
+            ver_glob = f"-{version}+" if version else "-*"
+            wheel_files = list(Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*{py_tag}*.whl"))
             if not wheel_files:
-                # Try with the full cuda tag
-                wheel_files = list(Path(wheel_dir).glob(f"gsplat-*{case.cuda}*.whl"))
+                # Fallback: match just CUDA tag without Python filter
+                wheel_files = list(Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*.whl"))
             if not wheel_files:
-                print(f"  SKIP: No wheel found for {wheel_tag} in {wheel_dir}")
+                print(f"  SKIP: No wheel found for {case.cuda} in {wheel_dir}")
                 return True
             wheel_file = str(wheel_files[0])
             result = run(
@@ -285,14 +367,19 @@ def run_test_case(
                 check=False,
             )
         elif index_url:
-            resolved_url = index_url
+            # Install from a PEP 503 index (e.g. GitHub Pages).
+            # Use --no-deps since torch and deps are already installed.
+            # Do NOT add --extra-index-url to prevent fallback to PyPI's
+            # source-only package (which lacks compiled extensions).
+            pkg_spec = f"gsplat=={version}" if version else "gsplat"
             result = run(
                 [uv, "pip", "install", "--python", venv_python,
-                 "gsplat", "--index-url", resolved_url, "-q"],
+                 pkg_spec, "--index-url", index_url,
+                 "--no-deps", "-q"],
                 check=False,
             )
         else:
-            print("  ERROR: need --wheel-dir, --index-url, or --index-base-url")
+            print("  ERROR: need --wheel-dir, --index-url, --index-base-url, or --gh-run-id")
             return False
 
         if result.returncode != 0:
@@ -304,7 +391,7 @@ def run_test_case(
 
         # 4. Install test dependencies
         print(f"\n[4/5] Installing test dependencies...")
-        deps = ["numpy", "jaxtyping", "typing_extensions"]
+        deps = ["numpy", "jaxtyping", "typing_extensions", "packaging", "rich", "setuptools"]
         if full_tests:
             deps += ["pytest", "rich"]
         run(
@@ -355,20 +442,43 @@ def main():
         epilog=__doc__,
     )
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--wheel-dir", help="Directory containing wheel files")
-    source.add_argument("--index-url", help="PEP 503 index URL for a single CUDA variant (e.g. .../pt23to26.cu12)")
+    source.add_argument("--wheel-dir", help="Directory containing .whl files")
+    source.add_argument("--gh-run-id",
+                        help="GitHub Actions run ID — downloads wheel artifacts automatically "
+                             "(requires `gh` CLI authenticated)")
+    source.add_argument("--index-url",
+                        help="PEP 503 index URL for a single CUDA variant, e.g. "
+                             "https://martinresearch.github.io/gsplat/whl/pt26cu124/")
     source.add_argument("--index-base-url",
-                        help="Base URL of wheel index; CUDA variant is appended automatically per test case "
-                             "(e.g. https://martinresearch.github.io/gsplat/whl)")
+                        help="Base URL of wheel index; CUDA variant is appended automatically "
+                             "per test case (e.g. https://martinresearch.github.io/gsplat/whl)")
 
     parser.add_argument("--python", help="Specific Python version (e.g., 3.12)")
-    parser.add_argument("--torch", help="Specific PyTorch version (e.g., 2.6.0)")
-    parser.add_argument("--cuda", help="Specific CUDA variant (cu118 or cu121)")
+    parser.add_argument("--torch", help="Specific PyTorch version to test (e.g., 2.6.0). "
+                        "If omitted, tests all versions in the matrix (2.6.0 + backward compat 2.5.0, 2.4.0).")
+    parser.add_argument("--cuda", help="Specific CUDA variant (cu118, cu124, or cu126)")
+    parser.add_argument("--version", help="gsplat version to install (e.g., 1.5.3). "
+                        "Defaults to latest available.")
     parser.add_argument("--no-gpu", action="store_true", help="Skip GPU tests (smoke test only)")
     parser.add_argument("--full-tests", action="store_true",
                         help="Also run pytest tests/test_basic.py (requires GPU)")
 
     args = parser.parse_args()
+
+    # Auto-detect --cuda from --index-url if not explicitly set
+    # e.g. https://martinresearch.github.io/gsplat/whl/pt26cu124/ -> cu124
+    if args.index_url and not args.cuda:
+        m = re.search(r'(cu\d{3,4})/?$', args.index_url.rstrip('/'))
+        if m:
+            args.cuda = m.group(1)
+            print(f"Auto-detected --cuda {args.cuda} from index URL")
+
+    # Handle --gh-run-id: download artifacts to a temp dir, then treat as --wheel-dir
+    _ci_tmpdir = None
+    if args.gh_run_id:
+        _ci_tmpdir = tempfile.mkdtemp(prefix="gsplat_ci_wheels_")
+        download_wheels_from_ci(args.gh_run_id, _ci_tmpdir)
+        args.wheel_dir = _ci_tmpdir
 
     uv = find_uv()
     repo_root = str(Path(__file__).resolve().parent.parent)
@@ -378,18 +488,25 @@ def main():
         print("No test cases match the given filters.")
         sys.exit(1)
 
-    print(f"Running {len(cases)} test case(s):")
+    # Group cases by torch version for a clear overview
+    by_torch: dict[str, list[TestCase]] = {}
     for c in cases:
-        print(f"  - {c.label}")
+        by_torch.setdefault(c.torch, []).append(c)
+
+    print(f"\nTest matrix: {len(cases)} case(s)")
+    for tv in sorted(by_torch):
+        group = by_torch[tv]
+        cudas = sorted(set(c.cuda for c in group))
+        pythons = sorted(set(c.python for c in group))
+        print(f"  torch {tv}: Python {', '.join(pythons)} × CUDA {', '.join(cudas)} ({len(group)} tests)")
+    print()
 
     results: dict[str, str] = {}
     for case in cases:
         # Resolve index URL: --index-base-url constructs per-CUDA-variant URLs
-        # Python 3.13+ wheels are in pt26 (Group B), all others in pt23to26 (Group A)
+        # Full CUDA tags: pt26cu118, pt26cu124, pt26cu126
         if args.index_base_url:
-            wheel_tag = CUDA_TO_WHEEL_TAG[case.cuda]
-            pt_range = "pt26" if case.python >= "3.13" else "pt23to26"
-            resolved_index_url = f"{args.index_base_url.rstrip('/')}/{pt_range}.{wheel_tag}"
+            resolved_index_url = f"{args.index_base_url.rstrip('/')}/pt26{case.cuda}"
         else:
             resolved_index_url = args.index_url
 
@@ -398,6 +515,7 @@ def main():
             case=case,
             wheel_dir=args.wheel_dir,
             index_url=resolved_index_url,
+            version=args.version,
             test_gpu=not args.no_gpu,
             full_tests=args.full_tests,
             repo_root=repo_root,
@@ -415,6 +533,10 @@ def main():
     failed = sum(1 for s in results.values() if s == "FAIL")
     total = len(results)
     print(f"\n  {total - failed}/{total} passed")
+
+    # Clean up CI temp dir if we created one
+    if _ci_tmpdir and os.path.exists(_ci_tmpdir):
+        shutil.rmtree(_ci_tmpdir, ignore_errors=True)
 
     if failed:
         sys.exit(1)
