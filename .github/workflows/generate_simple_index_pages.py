@@ -29,7 +29,11 @@ def list_python_wheels():
         for asset in assets:
             filename = asset["name"]
             if filename.endswith(".whl"):
-                pattern = r"^(?P<name>[\w\d_.]+)-(?P<version>[\d.]+)(?P<local>\+[\w\d.]+)?-(?P<python_tag>[\w]+)-(?P<abi_tag>[\w]+)-(?P<platform_tag>[\w]+)\.whl"
+                # Match wheel filenames with simple or compressed tags.
+                # Examples:
+                #   gsplat-1.5.3+pt23to26.cu121-cp310.cp311.cp312-cp310.cp311.cp312-manylinux...whl
+                #   gsplat-1.5.3+pt24cu121-cp310-cp310-win_amd64.whl  (legacy)
+                pattern = r"^(?P<name>[\w\d_.]+)-(?P<version>[\d.]+)(?P<local>\+[\w\d.]+)?-(?P<python_tag>[\w.]+)-(?P<abi_tag>[\w.]+)-(?P<platform_tag>[\w.]+)\.whl"
 
                 match = re.match(pattern, filename)
 

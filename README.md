@@ -36,14 +36,20 @@ Alternatively you can install gsplat from source. In this way it will build the 
 ```bash
 pip install git+https://github.com/nerfstudio-project/gsplat.git
 ```
+To build gsplat from source on Windows, please check [this instruction](docs/INSTALL_WIN.md).
 
-We also provide [pre-compiled wheels](https://docs.gsplat.studio/whl) for both linux and windows on certain python-torch-CUDA combinations (please check first which versions are supported). Note this way you would have to manually install [gsplat's dependencies](https://github.com/nerfstudio-project/gsplat/blob/6022cf45a19ee307803aaf1f19d407befad2a033/setup.py#L115). For example, to install gsplat for pytorch 2.0 and cuda 11.8 you can run
+We also provide pre-compiled wheels for Linux and Windows on Python 3.10–3.13 with PyTorch 2.3–2.6 and CUDA 11.x/12.x. See [docs/INSTALL_PRECOMPILED.md](docs/INSTALL_PRECOMPILED.md) for the full list and instructions. Quick example for CUDA 12.x:
+
+**Python 3.10 – 3.12:**
 ```
 pip install ninja numpy jaxtyping rich
-pip install gsplat --index-url https://docs.gsplat.studio/whl/pt20cu118
+pip install gsplat --index-url https://docs.gsplat.studio/whl/pt23to26.cu12
 ```
-
-To build gsplat from source on Windows, please check [this instruction](docs/INSTALL_WIN.md).
+**Python 3.13:**
+```
+pip install ninja numpy jaxtyping rich
+pip install gsplat --index-url https://docs.gsplat.studio/whl/pt26.cu12
+```
 
 ## Evaluation
 

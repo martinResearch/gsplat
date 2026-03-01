@@ -15,6 +15,10 @@ URL = "https://github.com/nerfstudio-project/gsplat"
 BUILD_NO_CUDA = os.getenv("BUILD_NO_CUDA", "0") == "1"
 WITH_SYMBOLS = os.getenv("WITH_SYMBOLS", "0") == "1"
 LINE_INFO = os.getenv("LINE_INFO", "0") == "1"
+# Directory of pre-compiled .o/.obj files to reuse across Python versions.
+# When set, only ext.cpp (pybind11 bindings) is compiled from source;
+# all CUDA/C++ objects are linked from this directory.
+PRECOMPILED_OBJECTS_DIR = os.getenv("GSPLAT_PRECOMPILED_OBJECTS")
 MAX_JOBS = os.getenv("MAX_JOBS")
 need_to_unset_max_jobs = False
 if not MAX_JOBS:
@@ -33,12 +37,34 @@ def get_extensions():
     import torch
     from torch.__config__ import parallel_info
     from torch.utils.cpp_extension import CUDAExtension
+    import torch.utils.cpp_extension as _cpp_ext
+
+    # PyTorch caches CUDA_HOME at import time via _find_cuda_home().
+    # On Windows CI, CUDA_HOME may be set via GITHUB_ENV but the cached
+    # module-level variable can end up None if torch was imported before
+    # the env var was visible.  Force-refresh from os.environ.
+    _env_cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
+    if _env_cuda_home and getattr(_cpp_ext, "CUDA_HOME", None) is None:
+        print(f"[setup.py] Overriding torch CUDA_HOME cache: {_env_cuda_home}")
+        _cpp_ext.CUDA_HOME = _env_cuda_home
 
     extensions_dir = osp.join("gsplat", "cuda")
-    sources = glob.glob(osp.join(extensions_dir, "csrc", "*.cu")) + glob.glob(
-        osp.join(extensions_dir, "csrc", "*.cpp")
-    )
-    sources += [osp.join(extensions_dir, "ext.cpp")]
+    extra_objects = []
+    if PRECOMPILED_OBJECTS_DIR and osp.isdir(PRECOMPILED_OBJECTS_DIR):
+        # Reuse pre-compiled CUDA/C++ objects — only ext.cpp needs
+        # Python-version-specific compilation (pybind11 bindings).
+        sources = [osp.join(extensions_dir, "ext.cpp")]
+        for ext in ("*.o", "*.obj"):
+            extra_objects += glob.glob(osp.join(PRECOMPILED_OBJECTS_DIR, ext))
+        extra_objects = [o for o in extra_objects
+                         if osp.basename(o) not in ("ext.o", "ext.obj")]
+        print(f"[setup.py] Reusing {len(extra_objects)} pre-compiled objects "
+              f"from {PRECOMPILED_OBJECTS_DIR}")
+    else:
+        sources = glob.glob(osp.join(extensions_dir, "csrc", "*.cu")) + glob.glob(
+            osp.join(extensions_dir, "csrc", "*.cpp")
+        )
+        sources += [osp.join(extensions_dir, "ext.cpp")]
 
     undef_macros = []
     define_macros = []
@@ -96,12 +122,29 @@ def get_extensions():
     extension = CUDAExtension(
         "gsplat.csrc",
         sources,
+        extra_objects=extra_objects,
         include_dirs=include_dirs,
         define_macros=define_macros,
         undef_macros=undef_macros,
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
     )
+
+    # On Windows, CUDAExtension may add libraries (e.g. c10_cuda) that
+    # don't exist in some PyTorch pip-wheel builds (symbols merged into
+    # torch_cuda).  Drop any torch .lib that doesn't actually exist to
+    # avoid LNK1181 "cannot open input file".
+    if sys.platform == "win32":
+        torch_lib_dir = pathlib.Path(torch.__file__).parent / "lib"
+        filtered = []
+        for lib_name in extension.libraries:
+            lib_file = torch_lib_dir / f"{lib_name}.lib"
+            if lib_file.exists() or lib_name in ("cudart",):
+                filtered.append(lib_name)
+            else:
+                print(f"[setup.py] Dropping non-existent library: {lib_name}")
+        extension.libraries = filtered
+
     return [extension]
 
 

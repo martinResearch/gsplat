@@ -20,10 +20,6 @@ jobs:
     name: Upload to GitHub Release
     needs: [build_wheels]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.10']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,10 +30,7 @@ jobs:
         id: download_artifacts
         uses: actions/download-artifact@v4
         with:
-          # The unique artifact names from building.yml all start with
-          # "compiled_wheels_python${{ matrix.python-version }}" so this pattern
-          # will match them all and merge them into the 'dist' directory.
-          pattern: compiled_wheels_python${{ matrix.python-version }}*
+          pattern: compiled_wheels-*
           path: dist
           merge-multiple: true
 
@@ -45,9 +38,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Fetching latest release info (unauthenticated)..."
+          echo "Fetching latest release info..."
           release_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            https://api.github.com/repos/nerfstudio-project/gsplat/releases/latest)
+            https://api.github.com/repos/${{ github.repository }}/releases/latest)
 
           # Extract the "upload_url" field and strip the {?name,label} part
           upload_url=$(echo "$release_info" | grep '"upload_url":' | cut -d '"' -f 4 | sed 's/{.*//')
@@ -85,7 +78,6 @@ jobs:
           publish_dir: ./whl
           destination_dir: whl
           keep_files: false
-          cname: docs.gsplat.studio
 
   upload_pypi:
     name: Upload to PyPi

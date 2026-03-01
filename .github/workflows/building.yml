@@ -1,9 +1,40 @@
 name: Build Wheels
 
 on: [workflow_call, workflow_dispatch]
+
+# -------------------------------------------------------------------------
+# Wheel-building strategy:
+#
+#   Python:  One wheel per Python version (3.10, 3.11, 3.12, 3.13).
+#            Cross-Python binary sharing was attempted but failed due to
+#            pybind11/CPython ABI incompatibilities (SIGSEGV across minor
+#            versions).
+#
+#   PyTorch: All wheels built with PyTorch 2.6.0. Cross-PyTorch ABI
+#            compatibility was tested but c10::SmallVectorBase::grow_pod
+#            changed signature between 2.3 and 2.4, making cross-version
+#            sharing unreliable. Backward compat tests are included for
+#            discovery but may fail.
+#
+#   CUDA:    Build with cu118, cu124, and cu126 toolkits. Wheel names
+#            use full CUDA tags (e.g. cu118, cu124, cu126) matching
+#            upstream convention. PyTorch 2.6 dropped cu121 wheels, so
+#            cu124 is the minimum CUDA 12 index.
+#
+#   Object reuse:
+#            CUDA/C++ kernels (~28 files) are Python-independent — they
+#            only link libtorch, not libpython. The first Python version
+#            (3.10) does a full compile (~15 min). Subsequent versions
+#            reuse those .o/.obj files and only recompile ext.cpp (the
+#            pybind11 bindings, ~30s). This cuts total CI compute by ~3×.
+#
+#   Result:  5 CI jobs produce 20 wheels, covering:
+#            4 Pythons × 1 PyTorch × 3 CUDA × 2 OS
+# -------------------------------------------------------------------------
+
 jobs:
   build_sdist:
-    name: Build source distribution and no binary wheel
+    name: Build source distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,13 +45,14 @@ jobs:
           sed -i '/<!-- pypi-strip -->/,/<!-- \/pypi-strip -->/d' README.md
       - name: Build sdist
         run: BUILD_NO_CUDA=1 pipx run build --sdist
-      - name: Build wheel with no binaries
-        run: BUILD_NO_CUDA=1 python setup.py bdist_wheel --dist-dir=dist
       - uses: actions/upload-artifact@v4
         with:
           name: pypi_packages
           path: dist/*.tar.gz
- 
+
+  # -----------------------------------------------------------------------
+  # Build compiled wheels (5 jobs × 4 Python versions = 20 wheels)
+  # -----------------------------------------------------------------------
   build_wheels:
     runs-on: ${{ matrix.os }}
     environment: production
@@ -28,68 +60,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-2022]
-        python-version: ['3.10']
-        torch-version: ['2.0.0', '2.1.0', '2.2.0', '2.3.0', '2.4.0']
-        cuda-version: ['cu118', 'cu121', 'cu124']
-        exclude:
-          - python-version: 3.12
-            torch-version: 2.0.0
-          - python-version: 3.12
-            torch-version: 2.1.0
-          - torch-version: 2.0.0
-            cuda-version: 'cu113'
-          - torch-version: 2.0.0
-            cuda-version: 'cu116'
-          - torch-version: 2.0.0
-            cuda-version: 'cu121'
-          - torch-version: 2.0.0
-            cuda-version: 'cu124'
-          - torch-version: 2.1.0
-            cuda-version: 'cu113'
-          - torch-version: 2.1.0
-            cuda-version: 'cu116'
-          - torch-version: 2.1.0
-            cuda-version: 'cu117'
-          - torch-version: 2.1.0
-            cuda-version: 'cu124'
-          - torch-version: 2.2.0
-            cuda-version: 'cu113'
-          - torch-version: 2.2.0
-            cuda-version: 'cu116'
-          - torch-version: 2.2.0
-            cuda-version: 'cu117'
-          - torch-version: 2.2.0
-            cuda-version: 'cu124'
-          - torch-version: 2.3.0
-            cuda-version: 'cu113'
-          - torch-version: 2.3.0
-            cuda-version: 'cu116'
-          - torch-version: 2.3.0
-            cuda-version: 'cu117'
-          - torch-version: 2.3.0
-            cuda-version: 'cu124'
-          - torch-version: 2.4.0
-            cuda-version: 'cu113'
-          - torch-version: 2.4.0
-            cuda-version: 'cu116'
-          - torch-version: 2.4.0
-            cuda-version: 'cu117'
+        include:
+          - os: ubuntu-22.04
+            cuda-version: cu118
+            default-torch-cuda: cu118
+          - os: ubuntu-22.04
+            cuda-version: cu124
+            default-torch-cuda: cu124
+          - os: ubuntu-22.04
+            cuda-version: cu126
+            default-torch-cuda: cu126
           - os: windows-2022
-            cuda-version: 'cu121'
+            cuda-version: cu124
+            default-torch-cuda: cu124
           - os: windows-2022
-            cuda-version: 'cu118'
+            cuda-version: cu126
+            default-torch-cuda: cu126
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-  
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
 
       - name: Free up disk space
         if: ${{ runner.os == 'Linux' }}
@@ -102,67 +94,333 @@ jobs:
         shell: bash
 
       - name: Install CUDA ${{ matrix.cuda-version }}
-        if: ${{ matrix.cuda-version != 'cpu' }}
         run: |
           bash .github/workflows/cuda/${{ runner.os }}.sh ${{ matrix.cuda-version }}
         shell: bash
 
-      - name: Install PyTorch ${{ matrix.torch-version }}+${{ matrix.cuda-version }}
+      - name: Set CUDA environment variables
         run: |
-          pip install torch==${{ matrix.torch-version }} --extra-index-url https://download.pytorch.org/whl/${{ matrix.cuda-version }}
-          python -c "import torch; print('PyTorch:', torch.__version__)"
-          python -c "import torch; print('CUDA:', torch.version.cuda)"
-          python -c "import torch; print('CUDA Available:', torch.cuda.is_available())"
-        shell: bash
-
-      - name: Patch PyTorch static constexpr on Windows
-        if: ${{ runner.os == 'Windows' }}
-        run: |
-          Torch_DIR=`python -c 'import os; import torch; print(os.path.dirname(torch.__file__))'`
-          sed -i '31,38c\
-          TORCH_API void lazy_init_num_threads();' ${Torch_DIR}/include/ATen/Parallel.h
-        shell: bash
-
-      - name: Set version
-        if: ${{ runner.os != 'macOS' }}
-        run: |
-          VERSION=`sed -n 's/^__version__ = "\(.*\)"/\1/p' gsplat/version.py`
-          TORCH_VERSION=`echo "pt${{ matrix.torch-version }}" | sed "s/..$//" | sed "s/\.//g"`
-          CUDA_VERSION=`echo ${{ matrix.cuda-version }}`
-          echo "New version name: $VERSION+$TORCH_VERSION$CUDA_VERSION"
-          sed -i "s/$VERSION/$VERSION+$TORCH_VERSION$CUDA_VERSION/" gsplat/version.py
-        shell: bash
-
-      - name: Upgrade pip
-        run: |
-          pip install --upgrade setuptools
-          pip install ninja
-        shell: bash
-
-      - name: Install main package for CPU
-        if: ${{ matrix.cuda-version == 'cpu' }}
-        run: |
-          BUILD_NO_CUDA=1 pip install .
-        shell: bash
-
-      - name: Build wheel
-        run: |
-          pip install wheel
           source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
-          MAX_JOBS=2 python setup.py bdist_wheel --dist-dir=dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            CUDA_HOME=$(cygpath -w "$(dirname "$(dirname "$(which nvcc)")")")
+          fi
+          echo "CUDA_HOME=$CUDA_HOME" >> "$GITHUB_ENV"
+          echo "TORCH_CUDA_ARCH_LIST=$TORCH_CUDA_ARCH_LIST" >> "$GITHUB_ENV"
+          echo "Set CUDA_HOME=$CUDA_HOME"
+          echo "Set TORCH_CUDA_ARCH_LIST=$TORCH_CUDA_ARCH_LIST"
         shell: bash
 
-      - name: Test wheel
+      # ---- Python 3.10 (full compile — saves .o/.obj for reuse) ----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Build wheel (Python 3.10 – full compile)
         run: |
-          cd dist
-          ls -lah
-          pip install *.whl
-          python -c "import gsplat; print('gsplat:', gsplat.__version__)"
-          cd ..
+          bash .github/workflows/build_one_wheel.sh \
+            3.10 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }}
         shell: bash
+
+      # ---- Python 3.11 (fast rebuild — reuses .o/.obj) ----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build wheel (Python 3.11 – reusing objects)
+        run: |
+          bash .github/workflows/build_one_wheel.sh \
+            3.11 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+        shell: bash
+
+      # ---- Python 3.12 (fast rebuild — reuses .o/.obj) ----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build wheel (Python 3.12 – reusing objects)
+        run: |
+          bash .github/workflows/build_one_wheel.sh \
+            3.12 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+        shell: bash
+
+      # ---- Python 3.13 (fast rebuild — reuses .o/.obj) ----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build wheel (Python 3.13 – reusing objects)
+        run: |
+          bash .github/workflows/build_one_wheel.sh \
+            3.13 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+        shell: bash
+
+      # ---- Upload artifacts (one per Python, compatible with test_wheels) ----
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled_wheels-${{ matrix.os }}-${{ matrix.cuda-version }}-py3.10
+          path: dist/py3.10/*.whl
 
       - uses: actions/upload-artifact@v4
         with:
-          # Include unique matrix values to avoid name collisions.
-          name: compiled_wheels_python${{ matrix.python-version }}-${{ matrix.os }}-${{ matrix.torch-version }}-${{ matrix.cuda-version }}
-          path: dist/*.whl
+          name: compiled_wheels-${{ matrix.os }}-${{ matrix.cuda-version }}-py3.11
+          path: dist/py3.11/*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled_wheels-${{ matrix.os }}-${{ matrix.cuda-version }}-py3.12
+          path: dist/py3.12/*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled_wheels-${{ matrix.os }}-${{ matrix.cuda-version }}-py3.13
+          path: dist/py3.13/*.whl
+
+  # -----------------------------------------------------------------------
+  # Validate wheels against PyTorch 2.6 (build version) and optionally
+  # older PyTorch versions (backward compat discovery).
+  # -----------------------------------------------------------------------
+  test_wheels:
+    needs: build_wheels
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- Same-version tests (12): built with torch 2.6, test with 2.6 ---
+
+          # Linux cu118
+          - os: ubuntu-22.04
+            build-cuda-version: cu118
+            torch-cuda-version: cu118
+            python-version: '3.10'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu118
+            torch-cuda-version: cu118
+            python-version: '3.11'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu118
+            torch-cuda-version: cu118
+            python-version: '3.12'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu118
+            torch-cuda-version: cu118
+            python-version: '3.13'
+            torch-version: '2.6.0'
+
+          # Linux cu124
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.10'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.11'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.12'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.13'
+            torch-version: '2.6.0'
+
+          # Linux cu126
+          - os: ubuntu-22.04
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.10'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.11'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.12'
+            torch-version: '2.6.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.13'
+            torch-version: '2.6.0'
+
+          # Windows cu124
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.10'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.11'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.12'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu124
+            torch-cuda-version: cu124
+            python-version: '3.13'
+            torch-version: '2.6.0'
+
+          # Windows cu126
+          - os: windows-2022
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.10'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.11'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.12'
+            torch-version: '2.6.0'
+          - os: windows-2022
+            build-cuda-version: cu126
+            torch-cuda-version: cu126
+            python-version: '3.13'
+            torch-version: '2.6.0'
+
+          # --- Backward compat discovery (allow-failure) ---
+          # These use cu124 build wheels + cu121 torch index (2.5 and
+          # older still have cu121 wheels, unlike 2.6+).
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.5.0'
+            discovery: true
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.4.0'
+            discovery: true
+          - os: ubuntu-22.04
+            build-cuda-version: cu124
+            torch-cuda-version: cu121
+            python-version: '3.10'
+            torch-version: '2.3.0'
+            discovery: true
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: compiled_wheels-${{ matrix.os }}-${{ matrix.build-cuda-version }}-py${{ matrix.python-version }}
+          path: dist
+
+      - name: Install PyTorch ${{ matrix.torch-version }}+${{ matrix.torch-cuda-version }}
+        run: |
+          TORCH_CUDA_IDX="${{ matrix.torch-cuda-version }}"
+          pip install torch==${{ matrix.torch-version }} \
+            --index-url https://download.pytorch.org/whl/${TORCH_CUDA_IDX} \
+            --extra-index-url https://pypi.org/simple
+        shell: bash
+
+      - name: Install and test wheel
+        continue-on-error: ${{ matrix.discovery == true }}
+        run: |
+          cd dist
+          pip install *.whl
+          python -c "import gsplat; print('gsplat:', gsplat.__version__)"
+          python -c "
+          import sys, importlib
+          print(f'Python: {sys.version}')
+
+          # --- 1. Verify C extension loads and all expected symbols exist ---
+          csrc = importlib.import_module('gsplat.csrc')
+          EXPECTED_FUNCS = [
+              'null',
+              'quat_scale_to_covar_preci_fwd', 'quat_scale_to_covar_preci_bwd',
+              'spherical_harmonics_fwd', 'spherical_harmonics_bwd',
+              'adam', 'relocation',
+              'intersect_tile', 'intersect_offset',
+              'projection_ewa_simple_fwd', 'projection_ewa_simple_bwd',
+              'projection_ewa_3dgs_fused_fwd', 'projection_ewa_3dgs_fused_bwd',
+              'projection_ewa_3dgs_packed_fwd', 'projection_ewa_3dgs_packed_bwd',
+              'rasterize_to_pixels_3dgs_fwd', 'rasterize_to_pixels_3dgs_bwd',
+              'rasterize_to_indices_3dgs',
+              'projection_2dgs_fused_fwd', 'projection_2dgs_fused_bwd',
+              'projection_2dgs_packed_fwd', 'projection_2dgs_packed_bwd',
+              'rasterize_to_pixels_2dgs_fwd', 'rasterize_to_pixels_2dgs_bwd',
+              'rasterize_to_indices_2dgs',
+              'projection_ut_3dgs_fused',
+              'rasterize_to_pixels_from_world_3dgs_fwd',
+              'rasterize_to_pixels_from_world_3dgs_bwd',
+          ]
+          EXPECTED_CLASSES = [
+              'CameraModelType', 'ShutterType',
+              'UnscentedTransformParameters', 'FThetaCameraDistortionParameters',
+          ]
+          missing = [f for f in EXPECTED_FUNCS + EXPECTED_CLASSES if not hasattr(csrc, f)]
+          if missing:
+              print(f'FAIL: missing symbols: {missing}')
+              sys.exit(1)
+          print(f'OK: all {len(EXPECTED_FUNCS)} functions and {len(EXPECTED_CLASSES)} classes found')
+
+          # --- 2. Verify PyTorch ABI compatibility ---
+          import torch
+          print(f'PyTorch: {torch.__version__}, CUDA: {torch.version.cuda}')
+
+          # --- 3. Verify public Python API imports ---
+          from gsplat import rasterization, rendering, utils
+          from gsplat.cuda._wrapper import fully_fused_projection, rasterize_to_pixels
+          print('OK: public API imports')
+
+          # --- 4. Verify enum values are accessible ---
+          assert csrc.CameraModelType.PINHOLE is not None
+          assert csrc.CameraModelType.FISHEYE is not None
+          assert csrc.ShutterType.GLOBAL is not None
+          print('OK: enum values accessible')
+
+          # --- 5. Verify class instantiation ---
+          ut = csrc.UnscentedTransformParameters()
+          assert hasattr(ut, 'alpha')
+          ftheta = csrc.FThetaCameraDistortionParameters()
+          assert hasattr(ftheta, 'max_angle')
+          print('OK: C++ class instantiation')
+
+          print('ALL SMOKE TESTS PASSED')
+          "
+        shell: bash
+
+      - name: Check shared library dependencies
+        continue-on-error: ${{ matrix.discovery == true }}
+        run: |
+          SITE=$(python -c "import gsplat.csrc; print(gsplat.csrc.__file__)")
+          echo "Extension path: $SITE"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            echo "--- ldd output ---"
+            ldd "$SITE"
+            if ldd "$SITE" | grep -E 'libcudart\.so' | grep -v 'torch'; then
+              echo "WARN: extension links against system libcudart (not PyTorch's)"
+            fi
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            echo "--- dumpbin output ---"
+            dumpbin //DEPENDENTS "$SITE" || true
+          fi
+        shell: bash
