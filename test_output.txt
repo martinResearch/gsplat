@@ -1,0 +1,283 @@
+
+Test matrix: 8 case(s)
+  torch 2.6.0: Python 3.10, 3.11, 3.12, 3.13 Î CUDA cu124, cu126 (8 tests)
+
+
+======================================================================
+  py3.10-torch2.6.0-cu124
+======================================================================
+
+[1/5] Creating venv with Python 3.10...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\.venv --python 3.10 -q
+
+[2/5] Installing PyTorch 2.6.0+cu124...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu124_k1uzhsn7\test_gsplat.py
+Python: 3.10.0 (default, Oct 17 2021, 23:51:15) [MSC v.1929 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu124
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu124
+CUDA (PyTorch): 12.4
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.4
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 180435.265625)
+ALL TESTS PASSED
+
+  PASS: py3.10-torch2.6.0-cu124
+
+======================================================================
+  py3.11-torch2.6.0-cu124
+======================================================================
+
+[1/5] Creating venv with Python 3.11...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\.venv --python 3.11 -q
+
+[2/5] Installing PyTorch 2.6.0+cu124...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu124_1loozco7\test_gsplat.py
+Python: 3.11.10 (main, Oct 16 2024, 00:15:32) [MSC v.1929 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu124
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu124
+CUDA (PyTorch): 12.4
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.4
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 185199.000000)
+ALL TESTS PASSED
+
+  PASS: py3.11-torch2.6.0-cu124
+
+======================================================================
+  py3.12-torch2.6.0-cu124
+======================================================================
+
+[1/5] Creating venv with Python 3.12...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\.venv --python 3.12 -q
+
+[2/5] Installing PyTorch 2.6.0+cu124...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu124_unfn96la\test_gsplat.py
+Python: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu124
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu124
+CUDA (PyTorch): 12.4
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.4
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 176076.750000)
+ALL TESTS PASSED
+
+  PASS: py3.12-torch2.6.0-cu124
+
+======================================================================
+  py3.13-torch2.6.0-cu124
+======================================================================
+
+[1/5] Creating venv with Python 3.13...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\.venv --python 3.13 -q
+
+[2/5] Installing PyTorch 2.6.0+cu124...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu124_dv0y29k_\test_gsplat.py
+Python: 3.13.9 (main, Nov 19 2025, 22:41:40) [MSC v.1944 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu124
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu124
+CUDA (PyTorch): 12.4
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.4
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 179276.343750)
+ALL TESTS PASSED
+
+  PASS: py3.13-torch2.6.0-cu124
+
+======================================================================
+  py3.10-torch2.6.0-cu126
+======================================================================
+
+[1/5] Creating venv with Python 3.10...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\.venv --python 3.10 -q
+
+[2/5] Installing PyTorch 2.6.0+cu126...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu126 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu126 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.10-torch2.6.0-cu126_zritj4yi\test_gsplat.py
+Python: 3.10.0 (default, Oct 17 2021, 23:51:15) [MSC v.1929 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu126
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu126
+CUDA (PyTorch): 12.6
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.6
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 183696.781250)
+ALL TESTS PASSED
+
+  PASS: py3.10-torch2.6.0-cu126
+
+======================================================================
+  py3.11-torch2.6.0-cu126
+======================================================================
+
+[1/5] Creating venv with Python 3.11...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\.venv --python 3.11 -q
+
+[2/5] Installing PyTorch 2.6.0+cu126...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu126 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu126 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.11-torch2.6.0-cu126_0a1pmgak\test_gsplat.py
+Python: 3.11.10 (main, Oct 16 2024, 00:15:32) [MSC v.1929 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu126
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu126
+CUDA (PyTorch): 12.6
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.6
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 179231.625000)
+ALL TESTS PASSED
+
+  PASS: py3.11-torch2.6.0-cu126
+
+======================================================================
+  py3.12-torch2.6.0-cu126
+======================================================================
+
+[1/5] Creating venv with Python 3.12...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu126_ar8ofxz1\.venv --python 3.12 -q
+
+[2/5] Installing PyTorch 2.6.0+cu126...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.12-torch2.6.0-cu126_ar8ofxz1\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu126 -q
+  SKIP: PyTorch 2.6.0+cu126 not available for Python 3.12
+    ├ù Failed to download `torch==2.6.0+cu126`
+      Ôö£ÔöÇÔûÂ Failed to extract archive: torch-2.6.0+cu126-cp312-cp312-win_amd64.whl
+      Ôö£ÔöÇÔûÂ I/O operation failed during extraction
+
+======================================================================
+  py3.13-torch2.6.0-cu126
+======================================================================
+
+[1/5] Creating venv with Python 3.13...
+  $ C:\Users\madelago\.local\bin\uv.EXE venv C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\.venv --python 3.13 -q
+
+[2/5] Installing PyTorch 2.6.0+cu126...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\.venv\Scripts\python.exe torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu126 -q
+
+[3/5] Installing gsplat wheel...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\.venv\Scripts\python.exe gsplat==1.5.3 --index-url https://martinresearch.github.io/gsplat/whl/pt26cu126 --no-deps -q
+
+[4/5] Installing test dependencies...
+  $ C:\Users\madelago\.local\bin\uv.EXE pip install --python C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\.venv\Scripts\python.exe numpy jaxtyping typing_extensions packaging rich setuptools -q
+
+[5/5] Running tests...
+  $ C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\.venv\Scripts\python.exe C:\Users\madelago\AppData\Local\Temp\gsplat_test_py3.13-torch2.6.0-cu126_afw3lsjs\test_gsplat.py
+Python: 3.13.9 (main, Nov 19 2025, 22:41:40) [MSC v.1944 64 bit (AMD64)]
+gsplat: 1.5.3+pt26cu126
+OK: all 28 functions and 4 classes found
+OK: public API imports
+OK: enum values
+OK: C++ class instantiation
+PyTorch: 2.6.0+cu126
+CUDA (PyTorch): 12.6
+CUDA available: True
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+Driver CUDA: 12.6
+OK: rasterization forward pass, output shape: torch.Size([3, 420, 648, 3])
+OK: backward pass completed
+OK: gradients computed (means.grad norm: 178787.765625)
+ALL TESTS PASSED
+
+  PASS: py3.13-torch2.6.0-cu126
+
+======================================================================
+  SUMMARY
+======================================================================
+Traceback (most recent call last):
+  File "C:\repos\gsplat\scripts\test_wheels_local.py", line 546, in <module>
+    main()
+  File "C:\repos\gsplat\scripts\test_wheels_local.py", line 531, in main
+    print(f"  {icon} {label}: {status}")
+  File "C:\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 2: character maps to <undefined>

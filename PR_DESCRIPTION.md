@@ -20,15 +20,17 @@ We investigated whether a single compiled binary could be shared across Python v
 
 As a result, we build one wheel per Python version. This is the same approach that PyTorch itself uses.
 
-### Single PyTorch build version
+### Configurable PyTorch build version
 
-All wheels are built against **PyTorch 2.7.0** (the latest stable release at time of writing). Backward compatibility with older PyTorch versions is **not supported** — C++ ABI symbols change between PyTorch minor releases, so wheels built for 2.7 will not work correctly with older versions. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
+The PyTorch version is configurable via a workflow input parameter (default: **2.7.0**). The workflow also supports **2.6.0** as an alternative. Only one PyTorch version is built per workflow run — backward compatibility across PyTorch versions is **not supported** because C++ ABI symbols change between minor releases. Wheels built for one version will not work correctly with another. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
+
+When PyTorch 2.6.0 is selected, cu128 build and test jobs are automatically skipped (PyTorch 2.6 does not provide cu128 wheels), reducing the matrix from 28 to 20 wheels.
 
 This is in contrast with our support for multiple Python and CUDA versions:
 
 - **Multiple Python versions (3.10–3.13)** are worth supporting because users are often locked to a specific Python version by other dependencies in their environment. The cost is also low: thanks to CUDA object reuse (see [Build jobs](#build-jobs-5)), each additional Python version only adds ~30 seconds of compile time per build job.
 - **Multiple CUDA versions (cu118, cu124, cu126, cu128)** are worth supporting because users' GPU drivers dictate which CUDA versions they can run. Upgrading the driver is not always possible — for example on shared clusters or managed environments. Each CUDA version does require a full separate build (~14 min), but four versions cover the range of commonly deployed hardware.
-- **Multiple PyTorch versions** are not worth supporting because upgrading PyTorch is straightforward — it's a `pip install --upgrade` away, unlike changing a Python version (which may break other dependencies) or upgrading a GPU driver (which may require admin access). Users who can install gsplat can also install the latest PyTorch. Supporting an additional PyTorch version would require a completely separate set of wheels (doubling the count from 28 to 56), and there is no object reuse trick to reduce that cost.
+- **Building both PyTorch versions simultaneously** is not done because it would double the wheel count (from 28 to 56) with no object reuse benefit. Instead, the version is selectable per run.
 
 ### Full CUDA version tags
 
@@ -83,7 +85,7 @@ The table below lists all 28 wheels that are built and published. Each row is on
 | Windows | 3.12 | cu128 | `gsplat-1.5.3+pt27cu128-cp312-cp312-win_amd64.whl` | ✅ | — |
 | Windows | 3.13 | cu128 | `gsplat-1.5.3+pt27cu128-cp313-cp313-win_amd64.whl` | ✅ | — |
 
-All wheels are built against PyTorch 2.7.0. Each wheel is ~20 MB. Total release size: ~560 MB.
+All wheels are built against the selected PyTorch version (default: 2.7.0). Each wheel is ~20 MB. Total release size: up to ~560 MB (28 wheels for 2.7, 20 wheels for 2.6).
 
 Legend: ✅ = tested and passed, — = not tested
 
@@ -93,7 +95,7 @@ Legend: ✅ = tested and passed, — = not tested
 |---------------|--------|
 | Windows + cu118 | Not currently built. Could be added in the future since PyTorch 2.7 does provide cu118 Windows wheels. |
 | Any OS + cu121 | Dropped by PyTorch 2.6+. The cu121 index silently redirects to cu124, which causes a mismatch. |
-| Any OS + PyTorch 2.6/2.5 | C++ ABI symbols change between PyTorch minor releases. Not GPU-tested. |
+| Any OS + mixed PyTorch versions | C++ ABI symbols change between PyTorch minor releases. Wheels must match the installed PyTorch version. |
 | Python 3.14 | PyTorch does not ship cp314 wheels yet. |
 | macOS + any CUDA | macOS does not support CUDA. |
 
@@ -126,7 +128,7 @@ In practice, the first Python version does a full compile (~14 min) and saves th
 
 ### Test jobs (28)
 
-Each of the 28 wheels is tested in its own CI job using PyTorch 2.7.0 installed from the matching CUDA index. There are no backward compatibility tests because older PyTorch versions are not supported (see [Single PyTorch build version](#single-pytorch-build-version)).
+Each wheel is tested in its own CI job using the selected PyTorch version installed from the matching CUDA index (up to 28 test jobs for 2.7, 20 for 2.6). There are no cross-version compatibility tests because wheels must match the PyTorch version they were built against (see [Configurable PyTorch build version](#configurable-pytorch-build-version)).
 
 ### Smoke test suite
 
@@ -157,7 +159,7 @@ Each test job runs the following checks (without requiring a GPU):
 
 - **`setup.py`** — Added support for the `GSPLAT_PRECOMPILED_OBJECTS` environment variable. When set, setup.py only compiles `ext.cpp` and links against precompiled `.o`/`.obj` files instead of compiling everything from source. Also fixes a stale-cache bug with `CUDA_HOME` detection and filters out `.lib` files from `extra_objects` on Windows.
 
-- **`.github/workflows/building.yml`** — Completely rewritten to implement the 7-job build matrix with object reuse and the 28-job test matrix.
+- **`.github/workflows/building.yml`** — Completely rewritten to implement the build matrix with object reuse and test matrix. The PyTorch version is a configurable workflow input (default: 2.7.0, with 2.6.0 as an option). cu128 jobs are automatically skipped for PyTorch 2.6. Up to 7 build jobs produce up to 28 wheels.
 
 - **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.0).
 - **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added environment variables for cu126 and cu128.
@@ -190,6 +192,6 @@ Six issues had to be fixed to make Windows wheel building work with PyTorch 2.7:
 
 - **No GPU CI tests**: The GitHub Actions CI runners do not have GPUs. The smoke tests verify binary compatibility (symbols, imports, ABI) but cannot test actual kernel correctness. To validate GPU functionality, use `scripts/test_wheels_local.py` on a machine with a CUDA-capable GPU.
 - **Python 3.14**: Not included because PyTorch does not yet ship cp314 wheels. Can be added once PyTorch adds support.
-- **PyTorch 2.5/2.6 backward compatibility**: Not supported. C++ ABI symbols change between PyTorch minor releases, and these symbols are used on every C++ function call via the `CHECK_INPUT` and `DEVICE_GUARD` macros. This has not been GPU-tested on any OS. Supporting older PyTorch would require building separate wheels per PyTorch version, which would triple the wheel count.
+- **Cross-version PyTorch compatibility**: Not supported. C++ ABI symbols change between PyTorch minor releases, and these symbols are used on every C++ function call via the `CHECK_INPUT` and `DEVICE_GUARD` macros. The workflow supports building for either 2.6.0 or 2.7.0, but wheels from one version cannot be used with the other.
 - **Windows cu118**: Not currently built. Could be added in the future since PyTorch 2.7 does ship cu118 wheels for Windows.
 - **macOS**: Not applicable — macOS does not support CUDA.
