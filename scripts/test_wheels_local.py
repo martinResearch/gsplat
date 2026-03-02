@@ -50,10 +50,7 @@ How it works:
 
   Default matrix (no --torch/--cuda/--python filters):
     Windows:  8 tests — 8 primary (4 Py × 2 CUDA)
-    Linux:   19 tests — 12 primary (4 Py × 3 CUDA) + 7 compat (4+3 Py × cu124)
-
-  Backward compat (torch 2.5/2.4) is Linux-only — MSVC eager DLL resolution
-  on Windows means wheels built with torch 2.6 cannot load with older torch.
+    Linux:   12 tests — 12 primary (4 Py × 3 CUDA)
 
   Quick run (build version only):
     python scripts/test_wheels_local.py ... --torch 2.6.0
@@ -77,16 +74,12 @@ PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 
 # PyTorch versions and their supported CUDA variants + max Python.
 # Wheels are built against PyTorch 2.6.0 only. Backward compat with older
-# torch works on Linux (ELF lazy binding) but NOT on Windows (MSVC eager
-# DLL resolution — 50 symbols missing from torch 2.5/2.4 DLLs).
+# torch is NOT supported (50 symbols changed between 2.5→2.6, not GPU-tested).
 #
 # When --torch is not specified, ALL versions below are tested (full matrix).
 # Use --torch 2.6.0 to test only the build version for a quicker run.
 TORCH_CUDA_MATRIX = {
     "2.6.0": {"cuda": ["cu118", "cu124", "cu126"], "max_python": "3.13"},
-    # Backward compat (Linux only): same cu124 wheels tested with older torch.
-    "2.5.0": {"cuda": ["cu124"], "max_python": "3.13", "linux_only": True},
-    "2.4.0": {"cuda": ["cu124"], "max_python": "3.12", "linux_only": True},
 }
 
 EXPECTED_SYMBOLS = [
@@ -197,9 +190,6 @@ def build_matrix(args) -> list[TestCase]:
                 continue
             for py in PYTHON_VERSIONS:
                 if args.python and args.python != py:
-                    continue
-                # Skip backward compat entries on Windows (MSVC eager DLL resolution)
-                if sys.platform == "win32" and info.get("linux_only", False):
                     continue
                 # Skip unsupported Python versions
                 if py > info["max_python"]:

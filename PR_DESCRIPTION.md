@@ -22,20 +22,18 @@ Cross-Python binary sharing was extensively investigated and rejected:
 
 ### Single PyTorch build version
 
-All wheels are built against **PyTorch 2.6.0** (the latest stable release). Cross-PyTorch ABI compatibility was tested:
+All wheels are built against **PyTorch 2.6.0** (the latest stable release). Backward compatibility with older PyTorch was **not tested with GPU** and is **not supported**.
 
 | Runtime PyTorch | Linux | Windows | Notes |
 |----------------|-------|---------|-------|
-| 2.6.0 | ✅ Works | ✅ Works | Build version |
-| 2.5.0 | ✅ Works | ❌ Fails | Lazy binding on Linux; MSVC eager DLL resolution on Windows |
-| 2.4.0 | ✅ Works | ❌ Fails | Same issue — 50 symbols missing from torch 2.4 DLLs |
+| 2.6.0 | ✅ Tested | ✅ Tested | Build version — CI smoke + local GPU |
+| 2.5.0 | ❌ Not supported | ❌ Fails | Not tested with GPU |
+| 2.4.0 | ❌ Not supported | ❌ Fails | Not tested with GPU |
 | 2.3.0 | ❌ Fails | ❌ Fails | `c10::SmallVectorBase::grow_pod` signature changed |
 
-On **Linux**, ELF shared libraries use lazy symbol resolution — missing symbols only cause errors when actually called, not at load time. Since gsplat's code paths don't exercise the 50 symbols that changed between torch 2.5→2.6 (mostly `TensorBase` inlines, `at::_ops` dispatch wrappers, and `IValue` internals), the extension loads and runs correctly.
+On **Windows**, `.pyd` files (DLLs) use eager resolution — `ImportError: DLL load failed` at import time (50 missing symbols in `torch_cpu.dll`/`c10.dll`).
 
-On **Windows**, `.pyd` files (DLLs) use eager resolution — all imported symbols must resolve at `LoadLibrary` time. The `.pyd` built with torch 2.6.0 imports 50 symbols (from `torch_cpu.dll` and `c10.dll`) that were header-inline in 2.5.0 but became DLL exports in 2.6.0. This causes `ImportError: DLL load failed` on import.
-
-Linux backward compat discovery tests are included in CI. Windows backward compat is not supported.
+On **Linux**, `import gsplat` succeeds with older torch due to ELF lazy binding, but the 50 symbols that changed between torch 2.5→2.6 include `TensorBase::is_cuda()`, `.size()`, `.device()`, `.scalar_type()`, and `at::_ops` dispatch wrappers — all called on every C++ function invocation via `CHECK_INPUT` and `DEVICE_GUARD`. Whether lazy binding would resolve these from the older `libtorch` at call time has not been tested on a GPU. We do not claim backward compat works.
 
 ### CUDA object reuse
 
@@ -94,15 +92,11 @@ Each job builds 4 wheels (one per Python), taking ~16 minutes total:
 | 4 | Windows | cu124 | cu124 | ~14 min | ~30s each |
 | 5 | Windows | cu126 | cu126 | ~14 min | ~30s each |
 
-### Test jobs (28)
+### Test jobs (20)
 
 - **20 same-version tests**: Each wheel tested with torch 2.6.0 from its matching CUDA index
-- **8 backward compat discovery** (allow-failure, Linux only): cu124 wheels tested with older PyTorch:
-  - torch 2.5.0: py3.10–3.13 = 4 jobs
-  - torch 2.4.0: py3.10–3.12 = 3 jobs (no cp313)
-  - torch 2.3.0: py3.10 = 1 job (expected to fail — ABI break)
 
-  Windows backward compat is not tested — MSVC eager DLL resolution means wheels built with torch 2.6 cannot load with older torch versions (50 missing DLL symbols).
+No backward compat tests — older PyTorch is not supported (see [Single PyTorch build version](#single-pytorch-build-version)).
 
 ### Smoke test suite
 
@@ -146,25 +140,9 @@ Every configuration below is one row = one testable combination. Columns:
 | Windows | 3.12 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.13 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
 
-### Backward compatibility (cu124 wheel + older PyTorch, Linux only)
+### Backward compatibility
 
-Same cu124 wheel (built for PyTorch 2.6) tested with an older PyTorch runtime. **Linux only** — Windows fails at import time (see [Single PyTorch build version](#single-pytorch-build-version)).
-
-| OS | Python | CUDA | PyTorch | Wheel | CI | Local |
-|----|--------|------|---------|-------|----|-------|
-| Linux | 3.10 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-
-Same wheels as in the primary table — no separate wheel built for older PyTorch. CI runs smoke tests only (symbol check, import, ABI validation — no GPU). Local tests run the full forward + backward + gradient checks on a GPU.
-
-Linux backward compat works due to ELF lazy binding (symbols resolved on first call, not at load time). The 50 symbols that changed between torch 2.5→2.6 are not on gsplat's hot path, so the extension loads and runs correctly.
-
-Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels). All backward compat CI tests use `continue-on-error: true` so they don't block the build — but they pass consistently.
+Not supported. Wheels are built against PyTorch 2.6.0 only. Running with older PyTorch has not been GPU-tested and is not expected to work reliably — see [Single PyTorch build version](#single-pytorch-build-version) for details.
 
 ### Unsupported configurations
 
@@ -173,16 +151,15 @@ Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels). All backward compat C
 | Windows + cu118 | Not built (could be added — PyTorch 2.6 has cu118 Windows wheels) |
 | Any OS + cu121 | Dropped by PyTorch 2.6 (silently redirects to cu124) |
 | Any OS + PyTorch 2.3.0 | `c10::SmallVectorBase::grow_pod` signature changed |
-| Windows + PyTorch 2.5/2.4 | MSVC eager DLL resolution: 50 symbols in `torch_cpu.dll`/`c10.dll` were header-inline in 2.5 but DLL exports in 2.6 |
+| Any OS + PyTorch 2.5/2.4 | 50 symbols changed between torch 2.5→2.6; not GPU-tested |
 | Python 3.14 | PyTorch doesn't ship cp314 wheels yet |
 | macOS + any CUDA | No CUDA support on macOS |
 
 ### Coverage gaps
 
-All supported configurations are CI smoke-tested. GPU-level testing gaps:
+All 20 configurations are CI smoke-tested. GPU-level testing gaps:
 
-- **Linux**: No local GPU test machine available — all 12 Linux primary configs untested on GPU
-- **Linux backward compat**: CI smoke test passes (lazy binding), but no GPU test to confirm all code paths work — 7 configs untested on GPU
+- **Linux**: No local GPU test machine available — all 12 Linux configs untested on GPU
 
 GPU-validated (forward + backward + gradients on RTX 4060): Windows cu124 (py3.10–3.13) + Windows cu126 (py3.10–3.13) = **8 configs**
 
@@ -206,7 +183,7 @@ Legend: ✅ = tested & passed, — = not tested
 
 - **`setup.py`** — Added `GSPLAT_PRECOMPILED_OBJECTS` support: when set, only compiles `ext.cpp` and links precompiled `.o`/`.obj` files. Also fixes CUDA_HOME cache stale-read issue and Windows `.lib` filtering for `extra_objects`.
 
-- **`.github/workflows/building.yml`** — Complete rewrite: 5-job build matrix with object reuse, 35-job test matrix, backward compat discovery.
+- **`.github/workflows/building.yml`** — Complete rewrite: 5-job build matrix with object reuse, 20-job test matrix.
 
 - **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cu126 case (CUDA 12.6.3).
 - **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added cu126 environment variables.
@@ -239,6 +216,6 @@ Six issues were fixed to enable Windows wheel building with PyTorch 2.6:
 
 - **No GPU CI tests**: CI runners lack GPUs. Smoke tests verify binary compatibility but not kernel correctness. Use `scripts/test_wheels_local.py` for GPU validation.
 - **Python 3.14**: Not included — PyTorch doesn't yet ship cp314 wheels.
-- **PyTorch 2.4/2.5 backward compat**: Works on Linux (lazy binding) but not on Windows (eager DLL resolution). 50 symbols changed between torch 2.5→2.6. Building separate per-torch wheels would fix this but triples the wheel count.
+- **PyTorch 2.4/2.5 backward compat**: Not supported. 50 symbols changed between torch 2.5→2.6 (used on every C++ call via `CHECK_INPUT`/`DEVICE_GUARD`). Not GPU-tested on any OS. Building separate per-torch wheels could fix this but triples the wheel count.
 - **Windows cu118**: Not built (could be added — PyTorch 2.6 has cu118 Windows wheels).
 - **macOS**: No CUDA support.

@@ -10,11 +10,9 @@ on: [workflow_call, workflow_dispatch]
 #            pybind11/CPython ABI incompatibilities (SIGSEGV across minor
 #            versions).
 #
-#   PyTorch: All wheels built with PyTorch 2.6.0. Cross-PyTorch ABI
-#            compatibility was tested but c10::SmallVectorBase::grow_pod
-#            changed signature between 2.3 and 2.4, making cross-version
-#            sharing unreliable. Backward compat tests are included for
-#            discovery but may fail.
+#   PyTorch: All wheels built with PyTorch 2.6.0. Backward compat with
+#            older PyTorch is not supported (50 symbols changed between
+#            2.5→2.6, not GPU-tested).
 #
 #   CUDA:    Build with cu118, cu124, and cu126 toolkits. Wheel names
 #            use full CUDA tags (e.g. cu118, cu124, cu126) matching
@@ -176,8 +174,7 @@ jobs:
           path: dist/py3.13/*.whl
 
   # -----------------------------------------------------------------------
-  # Validate wheels against PyTorch 2.6 (build version) and optionally
-  # older PyTorch versions (backward compat discovery).
+  # Validate wheels against PyTorch 2.6 (build version).
   # -----------------------------------------------------------------------
   test_wheels:
     needs: build_wheels
@@ -299,69 +296,9 @@ jobs:
             python-version: '3.13'
             torch-version: '2.6.0'
 
-          # --- Backward compat discovery (allow-failure) ---
-          # These use cu124 build wheels + cu121 torch index (2.5 and
-          # older still have cu121 wheels, unlike 2.6+).
-
-          # Linux — torch 2.5.0 (py3.10–3.13)
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.11'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.12'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.13'
-            torch-version: '2.5.0'
-            discovery: true
-
-          # Linux — torch 2.4.0 (py3.10–3.12, no cp313)
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.4.0'
-            discovery: true
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.11'
-            torch-version: '2.4.0'
-            discovery: true
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.12'
-            torch-version: '2.4.0'
-            discovery: true
-
-          # Linux — torch 2.3.0 (py3.10 only, unsupported — ABI break)
-          - os: ubuntu-22.04
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.3.0'
-            discovery: true
-
-          # Windows backward compat removed: MSVC eager DLL resolution
-          # means 50 symbols exported by torch 2.6 (TensorBase methods, at::_ops
-          # dispatch, IValue, etc.) are not found in torch 2.5/2.4 DLLs.
-          # Linux backward compat works because ELF lazy binding defers
-          # symbol resolution until the symbol is actually called.
+          # Backward compat not supported: 50 symbols changed between
+          # torch 2.5→2.6 (TensorBase methods, at::_ops dispatch, IValue).
+          # Not GPU-tested on any OS. See PR_DESCRIPTION.md for details.
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -384,7 +321,6 @@ jobs:
         shell: bash
 
       - name: Install and test wheel
-        continue-on-error: ${{ matrix.discovery == true }}
         run: |
           cd dist
           pip install *.whl
@@ -451,7 +387,6 @@ jobs:
         shell: bash
 
       - name: Check shared library dependencies
-        continue-on-error: ${{ matrix.discovery == true }}
         run: |
           SITE=$(python -c "import gsplat.csrc; print(gsplat.csrc.__file__)")
           echo "Extension path: $SITE"
