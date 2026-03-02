@@ -49,8 +49,11 @@ How it works:
   Each venv is fully isolated and cleaned up automatically.
 
   Default matrix (no --torch/--cuda/--python filters):
-    Windows: 15 tests — 8 primary (4 Py × 2 CUDA) + 7 compat (4+3 Py × cu124)
-    Linux:   27 tests — 12 primary (4 Py × 3 CUDA) + 7 compat + 8 cu118 compat
+    Windows:  8 tests — 8 primary (4 Py × 2 CUDA)
+    Linux:   19 tests — 12 primary (4 Py × 3 CUDA) + 7 compat (4+3 Py × cu124)
+
+  Backward compat (torch 2.5/2.4) is Linux-only — MSVC eager DLL resolution
+  on Windows means wheels built with torch 2.6 cannot load with older torch.
 
   Quick run (build version only):
     python scripts/test_wheels_local.py ... --torch 2.6.0
@@ -73,16 +76,17 @@ from pathlib import Path
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 
 # PyTorch versions and their supported CUDA variants + max Python.
-# Wheels are built against PyTorch 2.6.0 only, but are backward compatible
-# with 2.4+ (2.3.0 has an ABI break in c10::SmallVectorBase::grow_pod).
+# Wheels are built against PyTorch 2.6.0 only. Backward compat with older
+# torch works on Linux (ELF lazy binding) but NOT on Windows (MSVC eager
+# DLL resolution — 50 symbols missing from torch 2.5/2.4 DLLs).
 #
 # When --torch is not specified, ALL versions below are tested (full matrix).
 # Use --torch 2.6.0 to test only the build version for a quicker run.
 TORCH_CUDA_MATRIX = {
     "2.6.0": {"cuda": ["cu118", "cu124", "cu126"], "max_python": "3.13"},
-    # Backward compat: same cu124 wheels (built for 2.6) tested with older torch.
-    "2.5.0": {"cuda": ["cu124"], "max_python": "3.13"},
-    "2.4.0": {"cuda": ["cu124"], "max_python": "3.12"},
+    # Backward compat (Linux only): same cu124 wheels tested with older torch.
+    "2.5.0": {"cuda": ["cu124"], "max_python": "3.13", "linux_only": True},
+    "2.4.0": {"cuda": ["cu124"], "max_python": "3.12", "linux_only": True},
 }
 
 EXPECTED_SYMBOLS = [
@@ -193,6 +197,9 @@ def build_matrix(args) -> list[TestCase]:
                 continue
             for py in PYTHON_VERSIONS:
                 if args.python and args.python != py:
+                    continue
+                # Skip backward compat entries on Windows (MSVC eager DLL resolution)
+                if sys.platform == "win32" and info.get("linux_only", False):
                     continue
                 # Skip unsupported Python versions
                 if py > info["max_python"]:
@@ -331,19 +338,30 @@ def run_test_case(
         else:
             venv_python = os.path.join(venv_dir, "bin", "python")
 
-        # 2. Install PyTorch
+        # 2. Install PyTorch (with retry for transient I/O errors)
         print(f"\n[2/5] Installing PyTorch {case.torch}+{case.cuda}...")
         torch_url = f"https://download.pytorch.org/whl/{case.cuda}"
-        result = run(
-            [uv, "pip", "install", "--python", venv_python,
-             f"torch=={case.torch}", "--extra-index-url", torch_url, "-q"],
-            check=False,
-        )
-        if result.returncode != 0:
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            result = run(
+                [uv, "pip", "install", "--python", venv_python,
+                 f"torch=={case.torch}", "--extra-index-url", torch_url, "-q"],
+                check=False,
+            )
+            if result.returncode == 0:
+                break
+            stderr = result.stderr or ""
+            # Retry on transient errors (I/O, network, extraction)
+            if attempt < max_retries and any(s in stderr for s in [
+                "I/O operation", "extraction", "ConnectionError",
+                "IncompleteRead", "ChunkedEncodingError", "timeout",
+            ]):
+                print(f"  Retry {attempt}/{max_retries}: transient error, retrying...")
+                continue
+            # Non-retryable failure — treat as skip
             print(f"  SKIP: PyTorch {case.torch}+{case.cuda} not available for Python {case.python}")
-            if result.stderr:
-                # Show first 3 lines of error
-                for line in result.stderr.strip().split("\n")[:3]:
+            if stderr:
+                for line in stderr.strip().split("\n")[:3]:
                     print(f"    {line}")
             return True  # Not a failure
 

@@ -357,53 +357,11 @@ jobs:
             torch-version: '2.3.0'
             discovery: true
 
-          # Windows — torch 2.5.0 (py3.10–3.12, no cp313 Windows wheels)
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.11'
-            torch-version: '2.5.0'
-            discovery: true
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.12'
-            torch-version: '2.5.0'
-            discovery: true
-
-          # Windows — torch 2.4.0 (py3.10–3.12, no cp313)
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.4.0'
-            discovery: true
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.11'
-            torch-version: '2.4.0'
-            discovery: true
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.12'
-            torch-version: '2.4.0'
-            discovery: true
-
-          # Windows — torch 2.3.0 (py3.10 only, unsupported — ABI break)
-          - os: windows-2022
-            build-cuda-version: cu124
-            torch-cuda-version: cu121
-            python-version: '3.10'
-            torch-version: '2.3.0'
-            discovery: true
+          # Windows backward compat removed: MSVC eager DLL resolution
+          # means 50 symbols exported by torch 2.6 (TensorBase methods, at::_ops
+          # dispatch, IValue, etc.) are not found in torch 2.5/2.4 DLLs.
+          # Linux backward compat works because ELF lazy binding defers
+          # symbol resolution until the symbol is actually called.
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}

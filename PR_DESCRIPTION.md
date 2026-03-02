@@ -24,14 +24,18 @@ Cross-Python binary sharing was extensively investigated and rejected:
 
 All wheels are built against **PyTorch 2.6.0** (the latest stable release). Cross-PyTorch ABI compatibility was tested:
 
-| Runtime PyTorch | Status | Notes |
-|----------------|--------|-------|
-| 2.6.0 | ✅ Works | Build version |
-| 2.5.0 | ✅ Works | Backward compatible |
-| 2.4.0 | ✅ Works | Backward compatible |
-| 2.3.0 | ❌ Fails | `c10::SmallVectorBase::grow_pod` signature changed |
+| Runtime PyTorch | Linux | Windows | Notes |
+|----------------|-------|---------|-------|
+| 2.6.0 | ✅ Works | ✅ Works | Build version |
+| 2.5.0 | ✅ Works | ❌ Fails | Lazy binding on Linux; MSVC eager DLL resolution on Windows |
+| 2.4.0 | ✅ Works | ❌ Fails | Same issue — 50 symbols missing from torch 2.4 DLLs |
+| 2.3.0 | ❌ Fails | ❌ Fails | `c10::SmallVectorBase::grow_pod` signature changed |
 
-Building separate per-PyTorch wheels was deemed unnecessary since 2.6-built wheels work with 2.4+. Discovery tests in CI verify this on every run.
+On **Linux**, ELF shared libraries use lazy symbol resolution — missing symbols only cause errors when actually called, not at load time. Since gsplat's code paths don't exercise the 50 symbols that changed between torch 2.5→2.6 (mostly `TensorBase` inlines, `at::_ops` dispatch wrappers, and `IValue` internals), the extension loads and runs correctly.
+
+On **Windows**, `.pyd` files (DLLs) use eager resolution — all imported symbols must resolve at `LoadLibrary` time. The `.pyd` built with torch 2.6.0 imports 50 symbols (from `torch_cpu.dll` and `c10.dll`) that were header-inline in 2.5.0 but became DLL exports in 2.6.0. This causes `ImportError: DLL load failed` on import.
+
+Linux backward compat discovery tests are included in CI. Windows backward compat is not supported.
 
 ### CUDA object reuse
 
@@ -90,13 +94,15 @@ Each job builds 4 wheels (one per Python), taking ~16 minutes total:
 | 4 | Windows | cu124 | cu124 | ~14 min | ~30s each |
 | 5 | Windows | cu126 | cu126 | ~14 min | ~30s each |
 
-### Test jobs (35)
+### Test jobs (28)
 
 - **20 same-version tests**: Each wheel tested with torch 2.6.0 from its matching CUDA index
-- **15 backward compat discovery** (allow-failure): cu124 wheels tested with older PyTorch on both Linux and Windows:
-  - torch 2.5.0: py3.10–3.13 Linux + py3.10–3.12 Windows = 7 jobs (no cp313 Windows wheels)
-  - torch 2.4.0: py3.10–3.12 × 2 OS = 6 jobs (no cp313)
-  - torch 2.3.0: py3.10 × 2 OS = 2 jobs (expected to fail — ABI break)
+- **8 backward compat discovery** (allow-failure, Linux only): cu124 wheels tested with older PyTorch:
+  - torch 2.5.0: py3.10–3.13 = 4 jobs
+  - torch 2.4.0: py3.10–3.12 = 3 jobs (no cp313)
+  - torch 2.3.0: py3.10 = 1 job (expected to fail — ABI break)
+
+  Windows backward compat is not tested — MSVC eager DLL resolution means wheels built with torch 2.6 cannot load with older torch versions (50 missing DLL symbols).
 
 ### Smoke test suite
 
@@ -119,18 +125,18 @@ Every configuration below is one row = one testable combination. Columns:
 
 | OS | Python | CUDA | PyTorch | Wheel | CI | Local |
 |----|--------|------|---------|-------|----|-------|
-| Linux | 3.10 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp310-cp310-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.11 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp311-cp311-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.12 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp312-cp312-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.13 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp313-cp313-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.10 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.11 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.12 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.13 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.10 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp310-cp310-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.11 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp311-cp311-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.12 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp312-cp312-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.13 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp313-cp313-linux_x86_64.whl` | ✅ | ✅ |
+| Linux | 3.10 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu118 | 2.6.0 | `gsplat-1.5.3+pt26cu118-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp313-cp313-linux_x86_64.whl` | ✅ | — |
 | Windows | 3.10 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.11 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.12 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
@@ -140,29 +146,25 @@ Every configuration below is one row = one testable combination. Columns:
 | Windows | 3.12 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
 | Windows | 3.13 | cu126 | 2.6.0 | `gsplat-1.5.3+pt26cu126-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
 
-### Backward compatibility (cu124 wheel + older PyTorch)
+### Backward compatibility (cu124 wheel + older PyTorch, Linux only)
 
-Same cu124 wheel (built for PyTorch 2.6) tested with an older PyTorch runtime.
+Same cu124 wheel (built for PyTorch 2.6) tested with an older PyTorch runtime. **Linux only** — Windows fails at import time (see [Single PyTorch build version](#single-pytorch-build-version)).
 
 | OS | Python | CUDA | PyTorch | Wheel | CI | Local |
 |----|--------|------|---------|-------|----|-------|
-| Linux | 3.10 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.11 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.12 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.13 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.10 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.11 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | ✅ |
-| Linux | 3.12 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | ✅ |
-| Windows | 3.10 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.10 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
+| Linux | 3.10 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu124 | 2.5.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu124 | 2.4.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
 
-Same wheels as in the primary table — no separate wheel built for older PyTorch.
+Same wheels as in the primary table — no separate wheel built for older PyTorch. CI runs smoke tests only (symbol check, import, ABI validation — no GPU). Local tests run the full forward + backward + gradient checks on a GPU.
 
-Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels on either OS). PyTorch 2.5.0 has cp313 on Linux but not Windows. All backward compat CI tests use `continue-on-error: true` so they don't block the build — but they pass consistently.
+Linux backward compat works due to ELF lazy binding (symbols resolved on first call, not at load time). The 50 symbols that changed between torch 2.5→2.6 are not on gsplat's hot path, so the extension loads and runs correctly.
+
+Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels). All backward compat CI tests use `continue-on-error: true` so they don't block the build — but they pass consistently.
 
 ### Unsupported configurations
 
@@ -171,12 +173,20 @@ Note: PyTorch 2.4.0 caps at Python 3.12 (no cp313 wheels on either OS). PyTorch 
 | Windows + cu118 | Not built (could be added — PyTorch 2.6 has cu118 Windows wheels) |
 | Any OS + cu121 | Dropped by PyTorch 2.6 (silently redirects to cu124) |
 | Any OS + PyTorch 2.3.0 | `c10::SmallVectorBase::grow_pod` signature changed |
+| Windows + PyTorch 2.5/2.4 | MSVC eager DLL resolution: 50 symbols in `torch_cpu.dll`/`c10.dll` were header-inline in 2.5 but DLL exports in 2.6 |
 | Python 3.14 | PyTorch doesn't ship cp314 wheels yet |
 | macOS + any CUDA | No CUDA support on macOS |
 
 ### Coverage gaps
 
-All supported configurations are now CI-tested across all Python versions. The only remaining gap is **GPU-level testing** — CI runners lack GPUs, so kernel correctness (forward pass, backward pass, gradients) is only verified by `test_wheels_local.py` on a local GPU machine.
+All supported configurations are CI smoke-tested. GPU-level testing gaps:
+
+- **Linux**: No local GPU test machine available — all 12 Linux primary configs untested on GPU
+- **Linux backward compat**: CI smoke test passes (lazy binding), but no GPU test to confirm all code paths work — 7 configs untested on GPU
+
+GPU-validated (forward + backward + gradients on RTX 4060): Windows cu124 (py3.10–3.13) + Windows cu126 (py3.10–3.13) = **8 configs**
+
+Legend: ✅ = tested & passed, — = not tested
 
 ## Changes
 
@@ -229,6 +239,6 @@ Six issues were fixed to enable Windows wheel building with PyTorch 2.6:
 
 - **No GPU CI tests**: CI runners lack GPUs. Smoke tests verify binary compatibility but not kernel correctness. Use `scripts/test_wheels_local.py` for GPU validation.
 - **Python 3.14**: Not included — PyTorch doesn't yet ship cp314 wheels.
-- **PyTorch 2.4/2.5 wheels**: Not built separately. Wheels built with 2.6 are runtime-compatible with 2.4+ (verified in CI). Separate 2.4/2.5 wheels could be added as additional build jobs if needed.
+- **PyTorch 2.4/2.5 backward compat**: Works on Linux (lazy binding) but not on Windows (eager DLL resolution). 50 symbols changed between torch 2.5→2.6. Building separate per-torch wheels would fix this but triples the wheel count.
 - **Windows cu118**: Not built (could be added — PyTorch 2.6 has cu118 Windows wheels).
 - **macOS**: No CUDA support.
