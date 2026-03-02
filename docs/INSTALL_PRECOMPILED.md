@@ -10,12 +10,12 @@ Each wheel is built for a specific CUDA version and tested across a range of PyT
 |---|---|---|---|
 | `pt23to26.cu11` | 11.x | 2.3 – 2.6 | 3.10 – 3.12 |
 | `pt23to26.cu12` | 12.x | 2.3 – 2.6 | 3.10 – 3.12 |
-| `pt26.cu11` | 11.x | 2.6+ | 3.13 |
-| `pt26.cu12` | 12.x | 2.6+ | 3.13 |
+| `pt27.cu11` | 11.x | 2.7+ | 3.10 – 3.13 |
+| `pt27.cu12` | 12.x | 2.7+ | 3.10 – 3.13 |
 
 > **Why two PyTorch ranges?** Python 3.13 removed an internal CPython symbol
 > (`_PyThreadState_UncheckedGet`) that pybind11 references, so 3.13 needs a
-> separately compiled wheel. PyTorch 2.6 is the earliest version available
+> separately compiled wheel. PyTorch 2.7 is the earliest version available
 > for Python 3.13 on the PyTorch index.
 
 > **How to choose:** match the CUDA version of your PyTorch installation.
@@ -38,7 +38,7 @@ Pick the index URL that matches your CUDA version:
 # Python 3.10 – 3.12:
 pip install gsplat --index-url https://docs.gsplat.studio/whl/pt23to26.cu12
 # Python 3.13:
-pip install gsplat --index-url https://docs.gsplat.studio/whl/pt26.cu12
+pip install gsplat --index-url https://docs.gsplat.studio/whl/pt27.cu12
 ```
 
 **CUDA 11.x**:
@@ -46,7 +46,7 @@ pip install gsplat --index-url https://docs.gsplat.studio/whl/pt26.cu12
 # Python 3.10 – 3.12:
 pip install gsplat --index-url https://docs.gsplat.studio/whl/pt23to26.cu11
 # Python 3.13:
-pip install gsplat --index-url https://docs.gsplat.studio/whl/pt26.cu11
+pip install gsplat --index-url https://docs.gsplat.studio/whl/pt27.cu11
 ```
 
 > **Note:** You may also need to install gsplat's dependencies manually since

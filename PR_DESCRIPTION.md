@@ -2,7 +2,7 @@
 
 ## Summary
 
-This PR overhauls the wheel-building CI to produce **20 precompiled wheels** that cover **4 Python versions (3.10–3.13) × 3 CUDA variants × 2 operating systems (Linux and Windows)**. Previously, wheels were only published for Python 3.10. To keep build times manageable, compiled CUDA objects are reused across Python versions — so just 5 CI build jobs are enough to produce all 20 wheels, using only about 3× the compute of the original single-Python setup.
+This PR overhauls the wheel-building CI to produce **28 precompiled wheels** that cover **4 Python versions (3.10–3.13) × 4 CUDA variants × 2 operating systems (Linux and Windows)**. Previously, wheels were only published for Python 3.10. To keep build times manageable, compiled CUDA objects are reused across Python versions — so just 7 CI build jobs are enough to produce all 28 wheels, using only about 3× the compute of the original single-Python setup.
 
 ## Motivation
 
@@ -22,59 +22,68 @@ As a result, we build one wheel per Python version. This is the same approach th
 
 ### Single PyTorch build version
 
-All wheels are built against **PyTorch 2.6.0** (the latest stable release at time of writing). Backward compatibility with older PyTorch versions is **not supported** — about 50 C++ symbols changed between PyTorch 2.5 and 2.6, so wheels built for 2.6 will not work correctly with older versions. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
+All wheels are built against **PyTorch 2.7.0** (the latest stable release at time of writing). Backward compatibility with older PyTorch versions is **not supported** — C++ ABI symbols change between PyTorch minor releases, so wheels built for 2.7 will not work correctly with older versions. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
 
 This is in contrast with our support for multiple Python and CUDA versions:
 
 - **Multiple Python versions (3.10–3.13)** are worth supporting because users are often locked to a specific Python version by other dependencies in their environment. The cost is also low: thanks to CUDA object reuse (see [Build jobs](#build-jobs-5)), each additional Python version only adds ~30 seconds of compile time per build job.
-- **Multiple CUDA versions (cu118, cu124, cu126)** are worth supporting because users' GPU drivers dictate which CUDA versions they can run. Upgrading the driver is not always possible — for example on shared clusters or managed environments. Each CUDA version does require a full separate build (~14 min), but three versions cover the range of commonly deployed hardware.
-- **Multiple PyTorch versions** are not worth supporting because upgrading PyTorch is straightforward — it's a `pip install --upgrade` away, unlike changing a Python version (which may break other dependencies) or upgrading a GPU driver (which may require admin access). Users who can install gsplat can also install the latest PyTorch. Supporting an additional PyTorch version would require a completely separate set of wheels (doubling the count from 20 to 40), and there is no object reuse trick to reduce that cost.
+- **Multiple CUDA versions (cu118, cu124, cu126, cu128)** are worth supporting because users' GPU drivers dictate which CUDA versions they can run. Upgrading the driver is not always possible — for example on shared clusters or managed environments. Each CUDA version does require a full separate build (~14 min), but four versions cover the range of commonly deployed hardware.
+- **Multiple PyTorch versions** are not worth supporting because upgrading PyTorch is straightforward — it's a `pip install --upgrade` away, unlike changing a Python version (which may break other dependencies) or upgrading a GPU driver (which may require admin access). Users who can install gsplat can also install the latest PyTorch. Supporting an additional PyTorch version would require a completely separate set of wheels (doubling the count from 28 to 56), and there is no object reuse trick to reduce that cost.
 
 ### Full CUDA version tags
 
-Wheel filenames include a full CUDA version tag (e.g. `+pt26cu124`) that follows the same convention used by PyTorch. This prevents collisions between wheels built for different CUDA versions and makes it easy to add new CUDA versions in the future.
+Wheel filenames include a full CUDA version tag (e.g. `+pt27cu124`) that follows the same convention used by PyTorch. This prevents collisions between wheels built for different CUDA versions and makes it easy to add new CUDA versions in the future.
 
-For example: `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl`
+For example: `gsplat-1.5.3+pt27cu124-cp310-cp310-linux_x86_64.whl`
 
 ### CUDA version matrix
 
-| Index | PyTorch 2.6 Linux | PyTorch 2.6 Windows | Notes |
+| Index | PyTorch 2.7 Linux | PyTorch 2.7 Windows | Notes |
 |-------|-------------------|---------------------|-------|
 | cu118 | ✅ | ✅ (not built) | CUDA 11.8 |
-| cu121 | ❌ | ❌ | **Dropped in PyTorch 2.6** |
+| cu121 | ❌ | ❌ | **Dropped in PyTorch 2.6+** |
 | cu124 | ✅ | ✅ | CUDA 12.4 |
 | cu126 | ✅ | ✅ | CUDA 12.6 |
+| cu128 | ✅ | ✅ | CUDA 12.8 |
 
-PyTorch 2.6 dropped cu121 entirely. The cu121 package index silently redirects to cu124 wheels, which would cause a toolkit/runtime mismatch. To avoid this, we use cu124 and cu126 for CUDA 12.x coverage.
+PyTorch 2.6+ dropped cu121 entirely. The cu121 package index silently redirects to cu124 wheels, which would cause a toolkit/runtime mismatch. To avoid this, we use cu124, cu126, and cu128 for CUDA 12.x coverage.
 
 ## Wheel matrix
 
-The table below lists all 20 wheels that are built and published. Each row is one wheel. The **CI** column indicates whether the wheel is smoke-tested in GitHub Actions (symbol check, imports, ABI — no GPU). The **Local** column indicates whether it has been GPU-tested locally (forward pass, backward pass, and gradient checks).
+The table below lists all 28 wheels that are built and published. Each row is one wheel. The **CI** column indicates whether the wheel is smoke-tested in GitHub Actions (symbol check, imports, ABI — no GPU). The **Local** column indicates whether it has been GPU-tested locally (forward pass, backward pass, and gradient checks).
 
 | OS | Python | CUDA | Wheel | CI | Local |
 |----|--------|------|-------|----|-------|
-| Linux | 3.10 | cu118 | `gsplat-1.5.3+pt26cu118-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu118 | `gsplat-1.5.3+pt26cu118-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu118 | `gsplat-1.5.3+pt26cu118-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu118 | `gsplat-1.5.3+pt26cu118-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu124 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu124 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu124 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu124 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu126 | `gsplat-1.5.3+pt26cu126-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu126 | `gsplat-1.5.3+pt26cu126-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu126 | `gsplat-1.5.3+pt26cu126-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu126 | `gsplat-1.5.3+pt26cu126-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Windows | 3.10 | cu124 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu124 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu124 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.13 | cu124 | `gsplat-1.5.3+pt26cu124-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.10 | cu126 | `gsplat-1.5.3+pt26cu126-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu126 | `gsplat-1.5.3+pt26cu126-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu126 | `gsplat-1.5.3+pt26cu126-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.13 | cu126 | `gsplat-1.5.3+pt26cu126-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
+| Linux | 3.10 | cu118 | `gsplat-1.5.3+pt27cu118-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu118 | `gsplat-1.5.3+pt27cu118-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu118 | `gsplat-1.5.3+pt27cu118-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu118 | `gsplat-1.5.3+pt27cu118-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu124 | `gsplat-1.5.3+pt27cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu124 | `gsplat-1.5.3+pt27cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu124 | `gsplat-1.5.3+pt27cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu124 | `gsplat-1.5.3+pt27cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu126 | `gsplat-1.5.3+pt27cu126-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu126 | `gsplat-1.5.3+pt27cu126-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu126 | `gsplat-1.5.3+pt27cu126-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu126 | `gsplat-1.5.3+pt27cu126-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu128 | `gsplat-1.5.3+pt27cu128-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu128 | `gsplat-1.5.3+pt27cu128-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu128 | `gsplat-1.5.3+pt27cu128-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu128 | `gsplat-1.5.3+pt27cu128-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Windows | 3.10 | cu124 | `gsplat-1.5.3+pt27cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.11 | cu124 | `gsplat-1.5.3+pt27cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.12 | cu124 | `gsplat-1.5.3+pt27cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.13 | cu124 | `gsplat-1.5.3+pt27cu124-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.10 | cu126 | `gsplat-1.5.3+pt27cu126-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.11 | cu126 | `gsplat-1.5.3+pt27cu126-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.12 | cu126 | `gsplat-1.5.3+pt27cu126-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.13 | cu126 | `gsplat-1.5.3+pt27cu126-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
+| Windows | 3.10 | cu128 | `gsplat-1.5.3+pt27cu128-cp310-cp310-win_amd64.whl` | ✅ | — |
+| Windows | 3.11 | cu128 | `gsplat-1.5.3+pt27cu128-cp311-cp311-win_amd64.whl` | ✅ | — |
+| Windows | 3.12 | cu128 | `gsplat-1.5.3+pt27cu128-cp312-cp312-win_amd64.whl` | ✅ | — |
+| Windows | 3.13 | cu128 | `gsplat-1.5.3+pt27cu128-cp313-cp313-win_amd64.whl` | ✅ | — |
 
-All wheels are built against PyTorch 2.6.0. Each wheel is ~20 MB. Total release size: ~400 MB.
+All wheels are built against PyTorch 2.7.0. Each wheel is ~20 MB. Total release size: ~560 MB.
 
 Legend: ✅ = tested and passed, — = not tested
 
@@ -82,39 +91,42 @@ Legend: ✅ = tested and passed, — = not tested
 
 | Configuration | Reason |
 |---------------|--------|
-| Windows + cu118 | Not currently built. Could be added in the future since PyTorch 2.6 does provide cu118 Windows wheels. |
-| Any OS + cu121 | Dropped by PyTorch 2.6. The cu121 index silently redirects to cu124, which causes a mismatch. |
-| Any OS + PyTorch 2.5/2.4 | 50 symbols changed between torch 2.5 and 2.6. Not GPU-tested. |
+| Windows + cu118 | Not currently built. Could be added in the future since PyTorch 2.7 does provide cu118 Windows wheels. |
+| Any OS + cu121 | Dropped by PyTorch 2.6+. The cu121 index silently redirects to cu124, which causes a mismatch. |
+| Any OS + PyTorch 2.6/2.5 | C++ ABI symbols change between PyTorch minor releases. Not GPU-tested. |
 | Python 3.14 | PyTorch does not ship cp314 wheels yet. |
 | macOS + any CUDA | macOS does not support CUDA. |
 
 ### Coverage gaps
 
-All 20 configurations pass the CI smoke tests. However, there is a gap in GPU-level testing:
+All 28 configurations pass the CI smoke tests. However, there is a gap in GPU-level testing:
 
-- **Linux**: No local Linux GPU test machine was available, so all 12 Linux configurations have not been GPU-tested. They pass the CI smoke tests (symbol check, imports, ABI) but have not been validated with actual CUDA kernel execution.
+- **Linux**: No local Linux GPU test machine was available, so all 16 Linux configurations have not been GPU-tested. They pass the CI smoke tests (symbol check, imports, ABI) but have not been validated with actual CUDA kernel execution.
+- **Windows cu128**: The 4 Windows cu128 configurations have not been GPU-tested locally yet (CI smoke tests pass).
 
 The 8 Windows configurations (cu124 and cu126, each with Python 3.10–3.13) have been fully GPU-validated on an RTX 4060, including forward pass, backward pass, and gradient checks.
 
 ## CI structure
 
-### Build jobs (5)
+### Build jobs (7)
 
-Each build job produces 4 wheels (one per Python version) and takes approximately 16 minutes total. To avoid compiling all 28 CUDA/C++ source files four times, the build reuses compiled object files across Python versions. This works because the kernel source files (in `gsplat/cuda/csrc/`) only include PyTorch headers, never Python headers — the only Python-dependent file is `ext.cpp` (the pybind11 bindings). So the first Python version does a full compile (~14 min), and the remaining three only recompile `ext.cpp` (~30s each).
+Each build job produces 4 wheels (one per Python version) in ~16 minutes total, down from ~56 minutes without optimization — a **3.5× reduction**. This is possible because 27 of the 28 CUDA/C++ source files never include Python headers, so their compiled object files are identical across Python versions. Only `ext.cpp` (the pybind11 bindings) needs to be recompiled for each Python version.
 
-This is implemented through the `GSPLAT_PRECOMPILED_OBJECTS` environment variable in `setup.py`. When set, setup.py passes the precompiled `.o`/`.obj` files as `extra_objects` to `CUDAExtension` instead of compiling from source.
+In practice, the first Python version does a full compile (~14 min) and saves the object files. The remaining three Python versions reuse those files and only recompile `ext.cpp` (~30s each). This is controlled by the `GSPLAT_PRECOMPILED_OBJECTS` environment variable in `setup.py`.
 
 | Job | OS | CUDA toolkit | Torch index | Full compile | 3 fast rebuilds |
 |-----|----|-------------|-------------|-------------|------------------|
 | 1 | Linux | cu118 | cu118 | ~14 min | ~30s each |
 | 2 | Linux | cu124 | cu124 | ~14 min | ~30s each |
 | 3 | Linux | cu126 | cu126 | ~14 min | ~30s each |
-| 4 | Windows | cu124 | cu124 | ~14 min | ~30s each |
-| 5 | Windows | cu126 | cu126 | ~14 min | ~30s each |
+| 4 | Linux | cu128 | cu128 | ~14 min | ~30s each |
+| 5 | Windows | cu124 | cu124 | ~14 min | ~30s each |
+| 6 | Windows | cu126 | cu126 | ~14 min | ~30s each |
+| 7 | Windows | cu128 | cu128 | ~14 min | ~30s each |
 
-### Test jobs (20)
+### Test jobs (28)
 
-Each of the 20 wheels is tested in its own CI job using PyTorch 2.6.0 installed from the matching CUDA index. There are no backward compatibility tests because older PyTorch versions are not supported (see [Single PyTorch build version](#single-pytorch-build-version)).
+Each of the 28 wheels is tested in its own CI job using PyTorch 2.7.0 installed from the matching CUDA index. There are no backward compatibility tests because older PyTorch versions are not supported (see [Single PyTorch build version](#single-pytorch-build-version)).
 
 ### Smoke test suite
 
@@ -145,10 +157,10 @@ Each test job runs the following checks (without requiring a GPU):
 
 - **`setup.py`** — Added support for the `GSPLAT_PRECOMPILED_OBJECTS` environment variable. When set, setup.py only compiles `ext.cpp` and links against precompiled `.o`/`.obj` files instead of compiling everything from source. Also fixes a stale-cache bug with `CUDA_HOME` detection and filters out `.lib` files from `extra_objects` on Windows.
 
-- **`.github/workflows/building.yml`** — Completely rewritten to implement the 5-job build matrix with object reuse and the 20-job test matrix.
+- **`.github/workflows/building.yml`** — Completely rewritten to implement the 7-job build matrix with object reuse and the 28-job test matrix.
 
-- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added a case for cu126 (CUDA 12.6.3).
-- **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added environment variables for cu126.
+- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.0).
+- **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added environment variables for cu126 and cu128.
 
 - **`.github/workflows/publish.yml`** — Updated the artifact download pattern and now uses `${{ github.repository }}` for compatibility with forks.
 
@@ -160,11 +172,11 @@ Each test job runs the following checks (without requiring a GPU):
 
 ## Windows build fixes
 
-Six issues had to be fixed to make Windows wheel building work with PyTorch 2.6:
+Six issues had to be fixed to make Windows wheel building work with PyTorch 2.7:
 
 1. **CUDA_HOME stale cache** — PyTorch's `_find_cuda_home()` caches the `CUDA_HOME` path at import time. If the environment variable changes after import, PyTorch still uses the old value. Our `setup.py` now force-refreshes `torch.utils.cpp_extension.CUDA_HOME` from the current environment before building.
 
-2. **Missing `cuda_cmake_macros.h`** — The PyTorch 2.6 pip wheels for Windows do not include this header file, but the build process expects it. The `build_one_wheel.sh` script creates a stub file as a workaround.
+2. **Missing `cuda_cmake_macros.h`** — The PyTorch 2.7 pip wheels for Windows do not include this header file, but the build process expects it. The `build_one_wheel.sh` script creates a stub file as a workaround.
 
 3. **Missing `.lib` files** — The PyTorch pip wheels for Windows do not ship `c10_cuda.lib` or `torch_cuda.lib`, which are needed for linking. The build script generates these import libraries from the corresponding DLLs using `dumpbin` and `lib.exe`.
 
@@ -178,6 +190,6 @@ Six issues had to be fixed to make Windows wheel building work with PyTorch 2.6:
 
 - **No GPU CI tests**: The GitHub Actions CI runners do not have GPUs. The smoke tests verify binary compatibility (symbols, imports, ABI) but cannot test actual kernel correctness. To validate GPU functionality, use `scripts/test_wheels_local.py` on a machine with a CUDA-capable GPU.
 - **Python 3.14**: Not included because PyTorch does not yet ship cp314 wheels. Can be added once PyTorch adds support.
-- **PyTorch 2.4/2.5 backward compatibility**: Not supported. 50 symbols changed between torch 2.5 and 2.6, and these symbols are used on every C++ function call via the `CHECK_INPUT` and `DEVICE_GUARD` macros. This has not been GPU-tested on any OS. Supporting older PyTorch would require building separate wheels per PyTorch version, which would triple the wheel count.
-- **Windows cu118**: Not currently built. Could be added in the future since PyTorch 2.6 does ship cu118 wheels for Windows.
+- **PyTorch 2.5/2.6 backward compatibility**: Not supported. C++ ABI symbols change between PyTorch minor releases, and these symbols are used on every C++ function call via the `CHECK_INPUT` and `DEVICE_GUARD` macros. This has not been GPU-tested on any OS. Supporting older PyTorch would require building separate wheels per PyTorch version, which would triple the wheel count.
+- **Windows cu118**: Not currently built. Could be added in the future since PyTorch 2.7 does ship cu118 wheels for Windows.
 - **macOS**: Not applicable — macOS does not support CUDA.

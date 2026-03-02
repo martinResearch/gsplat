@@ -6,6 +6,12 @@
 # NOT auto-translate env var values, only command-line arguments.
 
 case ${1} in
+  cu128)
+    export CUDA_HOME="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.8"
+    export PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/bin:$PATH"
+    export PATH="/c/Program Files (x86)/Microsoft Visual Studio/2017/BuildTools/MSBuild/15.0/Bin:$PATH"
+    export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;9.0"
+    ;;
   cu126)
     export CUDA_HOME="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"
     export PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin:$PATH"

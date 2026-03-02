@@ -6,7 +6,7 @@
 #
 # Arguments:
 #   py-version          Python version (e.g. 3.10)
-#   torch-version       PyTorch version (e.g. 2.6.0)
+#   torch-version       PyTorch version (e.g. 2.7.0)
 #   default-torch-cuda  Torch CUDA index to install from (e.g. cu118, cu124)
 #   build-cuda          CUDA toolkit used for compilation (e.g. cu118, cu124)
 #   precompiled-dir     Optional: directory of pre-compiled .o/.obj files to reuse
@@ -34,7 +34,7 @@ echo "================================================================"
 # --- Install dependencies ---
 # Starting from PyTorch 2.6, wheel names on the CUDA indexes no longer
 # include a +cuXYZ local version suffix (the wheel IS CUDA-enabled, but
-# pip reports it as plain 2.6.0). Install without the local tag.
+# pip reports it as plain 2.7.0). Install without the local tag.
 TORCH_CUDA="$DEFAULT_TORCH_CUDA"
 pip install torch==${TORCH_VER} \
     --index-url https://download.pytorch.org/whl/${TORCH_CUDA} \

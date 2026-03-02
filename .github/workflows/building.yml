@@ -10,14 +10,13 @@ on: [workflow_call, workflow_dispatch]
 #            pybind11/CPython ABI incompatibilities (SIGSEGV across minor
 #            versions).
 #
-#   PyTorch: All wheels built with PyTorch 2.6.0. Backward compat with
-#            older PyTorch is not supported (50 symbols changed between
-#            2.5→2.6, not GPU-tested).
+#   PyTorch: All wheels built with PyTorch 2.7.0. Backward compat with
+#            older PyTorch is not supported (C++ ABI symbols change
+#            between minor releases, not GPU-tested).
 #
-#   CUDA:    Build with cu118, cu124, and cu126 toolkits. Wheel names
-#            use full CUDA tags (e.g. cu118, cu124, cu126) matching
-#            upstream convention. PyTorch 2.6 dropped cu121 wheels, so
-#            cu124 is the minimum CUDA 12 index.
+#   CUDA:    Build with cu118, cu124, cu126, and cu128 toolkits. Wheel
+#            names use full CUDA tags (e.g. cu118, cu124, cu126, cu128)
+#            matching upstream convention.
 #
 #   Object reuse:
 #            CUDA/C++ kernels (~28 files) are Python-independent — they
@@ -26,8 +25,8 @@ on: [workflow_call, workflow_dispatch]
 #            reuse those .o/.obj files and only recompile ext.cpp (the
 #            pybind11 bindings, ~30s). This cuts total CI compute by ~3×.
 #
-#   Result:  5 CI jobs produce 20 wheels, covering:
-#            4 Pythons × 1 PyTorch × 3 CUDA × 2 OS
+#   Result:  7 CI jobs produce 28 wheels, covering:
+#            4 Pythons × 1 PyTorch × 4 CUDA × 2 OS
 # -------------------------------------------------------------------------
 
 jobs:
@@ -49,7 +48,7 @@ jobs:
           path: dist/*.tar.gz
 
   # -----------------------------------------------------------------------
-  # Build compiled wheels (5 jobs × 4 Python versions = 20 wheels)
+  # Build compiled wheels (7 jobs × 4 Python versions = 28 wheels)
   # -----------------------------------------------------------------------
   build_wheels:
     runs-on: ${{ matrix.os }}
@@ -68,12 +67,18 @@ jobs:
           - os: ubuntu-22.04
             cuda-version: cu126
             default-torch-cuda: cu126
+          - os: ubuntu-22.04
+            cuda-version: cu128
+            default-torch-cuda: cu128
           - os: windows-2022
             cuda-version: cu124
             default-torch-cuda: cu124
           - os: windows-2022
             cuda-version: cu126
             default-torch-cuda: cu126
+          - os: windows-2022
+            cuda-version: cu128
+            default-torch-cuda: cu128
 
     steps:
       - name: Checkout repository
@@ -116,7 +121,7 @@ jobs:
       - name: Build wheel (Python 3.10 – full compile)
         run: |
           bash .github/workflows/build_one_wheel.sh \
-            3.10 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }}
+            3.10 2.7.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }}
         shell: bash
 
       # ---- Python 3.11 (fast rebuild — reuses .o/.obj) ----
@@ -127,7 +132,7 @@ jobs:
       - name: Build wheel (Python 3.11 – reusing objects)
         run: |
           bash .github/workflows/build_one_wheel.sh \
-            3.11 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+            3.11 2.7.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
         shell: bash
 
       # ---- Python 3.12 (fast rebuild — reuses .o/.obj) ----
@@ -138,7 +143,7 @@ jobs:
       - name: Build wheel (Python 3.12 – reusing objects)
         run: |
           bash .github/workflows/build_one_wheel.sh \
-            3.12 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+            3.12 2.7.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
         shell: bash
 
       # ---- Python 3.13 (fast rebuild — reuses .o/.obj) ----
@@ -149,7 +154,7 @@ jobs:
       - name: Build wheel (Python 3.13 – reusing objects)
         run: |
           bash .github/workflows/build_one_wheel.sh \
-            3.13 2.6.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
+            3.13 2.7.0 ${{ matrix.default-torch-cuda }} ${{ matrix.cuda-version }} precompiled
         shell: bash
 
       # ---- Upload artifacts (one per Python, compatible with test_wheels) ----
@@ -174,7 +179,7 @@ jobs:
           path: dist/py3.13/*.whl
 
   # -----------------------------------------------------------------------
-  # Validate wheels against PyTorch 2.6 (build version).
+  # Validate wheels against PyTorch 2.7 (build version).
   # -----------------------------------------------------------------------
   test_wheels:
     needs: build_wheels
@@ -184,121 +189,165 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # --- Same-version tests (12): built with torch 2.6, test with 2.6 ---
+          # --- Same-version tests (12): built with torch 2.7, test with 2.7 ---
 
           # Linux cu118
           - os: ubuntu-22.04
             build-cuda-version: cu118
             torch-cuda-version: cu118
             python-version: '3.10'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu118
             torch-cuda-version: cu118
             python-version: '3.11'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu118
             torch-cuda-version: cu118
             python-version: '3.12'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu118
             torch-cuda-version: cu118
             python-version: '3.13'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
 
           # Linux cu124
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.10'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.11'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.12'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.13'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
 
           # Linux cu126
           - os: ubuntu-22.04
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.10'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.11'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.12'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: ubuntu-22.04
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.13'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
+
+          # Linux cu128
+          - os: ubuntu-22.04
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.10'
+            torch-version: '2.7.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.11'
+            torch-version: '2.7.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.12'
+            torch-version: '2.7.0'
+          - os: ubuntu-22.04
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.13'
+            torch-version: '2.7.0'
 
           # Windows cu124
           - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.10'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.11'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.12'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu124
             torch-cuda-version: cu124
             python-version: '3.13'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
 
           # Windows cu126
           - os: windows-2022
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.10'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.11'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.12'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
           - os: windows-2022
             build-cuda-version: cu126
             torch-cuda-version: cu126
             python-version: '3.13'
-            torch-version: '2.6.0'
+            torch-version: '2.7.0'
 
-          # Backward compat not supported: 50 symbols changed between
-          # torch 2.5→2.6 (TensorBase methods, at::_ops dispatch, IValue).
-          # Not GPU-tested on any OS. See PR_DESCRIPTION.md for details.
+          # Windows cu128
+          - os: windows-2022
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.10'
+            torch-version: '2.7.0'
+          - os: windows-2022
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.11'
+            torch-version: '2.7.0'
+          - os: windows-2022
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.12'
+            torch-version: '2.7.0'
+          - os: windows-2022
+            build-cuda-version: cu128
+            torch-cuda-version: cu128
+            python-version: '3.13'
+            torch-version: '2.7.0'
+
+          # Backward compat not supported: C++ ABI symbols change between
+          # PyTorch minor releases. Not GPU-tested on any OS.
+          # See PR_DESCRIPTION.md for details.
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}

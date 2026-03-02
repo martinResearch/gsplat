@@ -19,7 +19,7 @@ Quick start — download from CI and test:
 Test from the published wheel index (after a GitHub Release):
 
   # Test wheels from the GitHub Pages index:
-  python scripts/test_wheels_local.py --index-url https://martinresearch.github.io/gsplat/whl/pt26cu124/
+  python scripts/test_wheels_local.py --index-url https://martinresearch.github.io/gsplat/whl/pt27cu124/
 
   # Test all CUDA variants automatically:
   python scripts/test_wheels_local.py --index-base-url https://martinresearch.github.io/gsplat/whl
@@ -53,7 +53,7 @@ How it works:
     Linux:   12 tests — 12 primary (4 Py × 3 CUDA)
 
   Quick run (build version only):
-    python scripts/test_wheels_local.py ... --torch 2.6.0
+    python scripts/test_wheels_local.py ... --torch 2.7.0
 """
 
 import argparse
@@ -73,13 +73,14 @@ from pathlib import Path
 PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 
 # PyTorch versions and their supported CUDA variants + max Python.
-# Wheels are built against PyTorch 2.6.0 only. Backward compat with older
-# torch is NOT supported (50 symbols changed between 2.5→2.6, not GPU-tested).
+# Wheels are built against PyTorch 2.7.0 only. Backward compat with older
+# torch is NOT supported (C++ ABI symbols change between minor releases,
+# not GPU-tested).
 #
 # When --torch is not specified, ALL versions below are tested (full matrix).
-# Use --torch 2.6.0 to test only the build version for a quicker run.
+# Use --torch 2.7.0 to test only the build version for a quicker run.
 TORCH_CUDA_MATRIX = {
-    "2.6.0": {"cuda": ["cu118", "cu124", "cu126"], "max_python": "3.13"},
+    "2.7.0": {"cuda": ["cu118", "cu124", "cu126", "cu128"], "max_python": "3.13"},
 }
 
 EXPECTED_SYMBOLS = [
@@ -359,7 +360,7 @@ def run_test_case(
         print(f"\n[3/5] Installing gsplat wheel...")
         if wheel_dir:
             # Install from local wheel files using full CUDA tags (e.g. cu124, cu126)
-            # Wheel names look like: gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl
+            # Wheel names look like: gsplat-1.5.3+pt27cu124-cp312-cp312-win_amd64.whl
             py_tag = f"cp{case.python.replace('.', '')}"
             ver_glob = f"-{version}+" if version else "-*"
             wheel_files = list(Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*{py_tag}*.whl"))
@@ -456,15 +457,15 @@ def main():
                              "(requires `gh` CLI authenticated)")
     source.add_argument("--index-url",
                         help="PEP 503 index URL for a single CUDA variant, e.g. "
-                             "https://martinresearch.github.io/gsplat/whl/pt26cu124/")
+                             "https://martinresearch.github.io/gsplat/whl/pt27cu124/")
     source.add_argument("--index-base-url",
                         help="Base URL of wheel index; CUDA variant is appended automatically "
                              "per test case (e.g. https://martinresearch.github.io/gsplat/whl)")
 
     parser.add_argument("--python", help="Specific Python version (e.g., 3.12)")
-    parser.add_argument("--torch", help="Specific PyTorch version to test (e.g., 2.6.0). "
-                        "If omitted, tests all versions in the matrix (2.6.0 + backward compat 2.5.0, 2.4.0).")
-    parser.add_argument("--cuda", help="Specific CUDA variant (cu118, cu124, or cu126)")
+    parser.add_argument("--torch", help="Specific PyTorch version to test (e.g., 2.7.0). "
+                        "If omitted, tests all versions in the matrix.")
+    parser.add_argument("--cuda", help="Specific CUDA variant (cu118, cu124, cu126, or cu128)")
     parser.add_argument("--version", help="gsplat version to install (e.g., 1.5.3). "
                         "Defaults to latest available.")
     parser.add_argument("--no-gpu", action="store_true", help="Skip GPU tests (smoke test only)")
@@ -474,7 +475,7 @@ def main():
     args = parser.parse_args()
 
     # Auto-detect --cuda from --index-url if not explicitly set
-    # e.g. https://martinresearch.github.io/gsplat/whl/pt26cu124/ -> cu124
+    # e.g. https://martinresearch.github.io/gsplat/whl/pt27cu124/ -> cu124
     if args.index_url and not args.cuda:
         m = re.search(r'(cu\d{3,4})/?$', args.index_url.rstrip('/'))
         if m:
@@ -512,9 +513,9 @@ def main():
     results: dict[str, str] = {}
     for case in cases:
         # Resolve index URL: --index-base-url constructs per-CUDA-variant URLs
-        # Full CUDA tags: pt26cu118, pt26cu124, pt26cu126
+        # Full CUDA tags: pt27cu118, pt27cu124, pt27cu126, pt27cu128
         if args.index_base_url:
-            resolved_index_url = f"{args.index_base_url.rstrip('/')}/pt26{case.cuda}"
+            resolved_index_url = f"{args.index_base_url.rstrip('/')}/pt27{case.cuda}"
         else:
             resolved_index_url = args.index_url
 
