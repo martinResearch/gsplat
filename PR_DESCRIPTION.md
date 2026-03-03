@@ -20,70 +20,78 @@ We investigated whether a single compiled binary could be shared across Python v
 
 As a result, we build one wheel per Python version. This is the same approach that PyTorch itself uses.
 
-### Single PyTorch build version
+### PyTorch versions per CUDA index
 
-All wheels are built against **PyTorch 2.7.0** (the latest stable release at time of writing). Backward compatibility with older PyTorch versions is **not supported** — C++ ABI symbols change between PyTorch minor releases, so wheels built for 2.7 will not work correctly with older versions. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
+Each CUDA variant uses the **latest available PyTorch** on its PyTorch index:
+
+| CUDA | PyTorch | Tag |
+|------|---------|-----|
+| cu118 | 2.7.1 | pt27 |
+| cu124 | 2.6.0 | pt26 |
+| cu126 | 2.10.0 | pt210 |
+| cu128 | 2.10.0 | pt210 |
+
+Backward compatibility with older PyTorch versions is **not supported** — C++ ABI symbols change between PyTorch minor releases, so wheels built for one PyTorch version will not work correctly with a different version. On Windows, this causes an immediate import failure. On Linux, the import may appear to succeed but the code will likely crash on the first GPU call.
 
 This is in contrast with our support for multiple Python and CUDA versions:
 
-- **Multiple Python versions (3.10–3.13)** are worth supporting because users are often locked to a specific Python version by other dependencies in their environment. The cost is also low: thanks to CUDA object reuse (see [Build jobs](#build-jobs-5)), each additional Python version only adds ~30 seconds of compile time per build job.
+- **Multiple Python versions (3.10–3.13)** are worth supporting because users are often locked to a specific Python version by other dependencies in their environment. The cost is also low: thanks to CUDA object reuse (see [Build jobs](#build-jobs-7)), each additional Python version only adds ~30 seconds of compile time per build job.
 - **Multiple CUDA versions (cu118, cu124, cu126, cu128)** are worth supporting because users' GPU drivers dictate which CUDA versions they can run. Upgrading the driver is not always possible — for example on shared clusters or managed environments. Each CUDA version does require a full separate build (~14 min), but four versions cover the range of commonly deployed hardware.
-- **Multiple PyTorch versions** are not worth supporting because upgrading PyTorch is straightforward — it's a `pip install --upgrade` away, unlike changing a Python version (which may break other dependencies) or upgrading a GPU driver (which may require admin access). Users who can install gsplat can also install the latest PyTorch. Supporting an additional PyTorch version would require a completely separate set of wheels (doubling the count from 28 to 56), and there is no object reuse trick to reduce that cost.
 
 ### Full CUDA version tags
 
-Wheel filenames include a full CUDA version tag (e.g. `+pt27cu124`) that follows the same convention used by PyTorch. This prevents collisions between wheels built for different CUDA versions and makes it easy to add new CUDA versions in the future.
+Wheel filenames include both a PyTorch and CUDA version tag (e.g. `+pt27cu118`) that follows the same convention used by PyTorch. This prevents collisions between wheels built for different CUDA or PyTorch versions.
 
-For example: `gsplat-1.5.3+pt27cu124-cp310-cp310-linux_x86_64.whl`
+For example: `gsplat-1.5.3+pt27cu118-cp310-cp310-linux_x86_64.whl`
 
 ### CUDA version matrix
 
-| Index | PyTorch 2.7 Linux | PyTorch 2.7 Windows | Notes |
-|-------|-------------------|---------------------|-------|
-| cu118 | ✅ | ✅ (not built) | CUDA 11.8 |
-| cu121 | ❌ | ❌ | **Dropped in PyTorch 2.6+** |
-| cu124 | ✅ | ✅ | CUDA 12.4 |
-| cu126 | ✅ | ✅ | CUDA 12.6 |
-| cu128 | ✅ | ✅ | CUDA 12.8 |
+| Index | Linux | Windows | PyTorch | Notes |
+|-------|-------|---------|---------|-------|
+| cu118 | ✅ | ❌ (not built) | 2.7.1 | CUDA 11.8, Linux-only |
+| cu121 | ❌ | ❌ | — | **Dropped in PyTorch 2.6+** |
+| cu124 | ✅ | ✅ | 2.6.0 | CUDA 12.4 (latest torch on cu124 index) |
+| cu126 | ✅ | ✅ | 2.10.0 | CUDA 12.6 |
+| cu128 | ✅ | ✅ | 2.10.0 | CUDA 12.8 |
 
-PyTorch 2.6+ dropped cu121 entirely. The cu121 package index silently redirects to cu124 wheels, which would cause a toolkit/runtime mismatch. To avoid this, we use cu124, cu126, and cu128 for CUDA 12.x coverage.
+PyTorch 2.6+ dropped cu121 entirely. The cu121 package index silently redirects to cu124 wheels, which would cause a toolkit/runtime mismatch. PyTorch 2.7+ dropped cu124, so cu124 wheels use the latest available torch 2.6.0.
 
 ## Wheel matrix
 
 The table below lists all 28 wheels that are built and published. Each row is one wheel. The **CI** column indicates whether the wheel is smoke-tested in GitHub Actions (symbol check, imports, ABI — no GPU). The **Local** column indicates whether it has been GPU-tested locally (forward pass, backward pass, and gradient checks).
 
-| OS | Python | CUDA | Wheel | CI | Local |
-|----|--------|------|-------|----|-------|
-| Linux | 3.10 | cu118 | `gsplat-1.5.3+pt27cu118-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu118 | `gsplat-1.5.3+pt27cu118-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu118 | `gsplat-1.5.3+pt27cu118-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu118 | `gsplat-1.5.3+pt27cu118-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu124 | `gsplat-1.5.3+pt27cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu124 | `gsplat-1.5.3+pt27cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu124 | `gsplat-1.5.3+pt27cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu124 | `gsplat-1.5.3+pt27cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu126 | `gsplat-1.5.3+pt27cu126-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu126 | `gsplat-1.5.3+pt27cu126-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu126 | `gsplat-1.5.3+pt27cu126-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu126 | `gsplat-1.5.3+pt27cu126-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.10 | cu128 | `gsplat-1.5.3+pt27cu128-cp310-cp310-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.11 | cu128 | `gsplat-1.5.3+pt27cu128-cp311-cp311-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.12 | cu128 | `gsplat-1.5.3+pt27cu128-cp312-cp312-linux_x86_64.whl` | ✅ | — |
-| Linux | 3.13 | cu128 | `gsplat-1.5.3+pt27cu128-cp313-cp313-linux_x86_64.whl` | ✅ | — |
-| Windows | 3.10 | cu124 | `gsplat-1.5.3+pt27cu124-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu124 | `gsplat-1.5.3+pt27cu124-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu124 | `gsplat-1.5.3+pt27cu124-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.13 | cu124 | `gsplat-1.5.3+pt27cu124-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.10 | cu126 | `gsplat-1.5.3+pt27cu126-cp310-cp310-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.11 | cu126 | `gsplat-1.5.3+pt27cu126-cp311-cp311-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.12 | cu126 | `gsplat-1.5.3+pt27cu126-cp312-cp312-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.13 | cu126 | `gsplat-1.5.3+pt27cu126-cp313-cp313-win_amd64.whl` | ✅ | ✅ |
-| Windows | 3.10 | cu128 | `gsplat-1.5.3+pt27cu128-cp310-cp310-win_amd64.whl` | ✅ | — |
-| Windows | 3.11 | cu128 | `gsplat-1.5.3+pt27cu128-cp311-cp311-win_amd64.whl` | ✅ | — |
-| Windows | 3.12 | cu128 | `gsplat-1.5.3+pt27cu128-cp312-cp312-win_amd64.whl` | ✅ | — |
-| Windows | 3.13 | cu128 | `gsplat-1.5.3+pt27cu128-cp313-cp313-win_amd64.whl` | ✅ | — |
+| OS | Python | CUDA | PyTorch | Wheel | CI | Local |
+|----|--------|------|---------|-------|----|-------|
+| Linux | 3.10 | cu118 | 2.7.1 | `gsplat-1.5.3+pt27cu118-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu118 | 2.7.1 | `gsplat-1.5.3+pt27cu118-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu118 | 2.7.1 | `gsplat-1.5.3+pt27cu118-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu118 | 2.7.1 | `gsplat-1.5.3+pt27cu118-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.10 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp310-cp310-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.11 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp311-cp311-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.12 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp312-cp312-linux_x86_64.whl` | ✅ | — |
+| Linux | 3.13 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp313-cp313-linux_x86_64.whl` | ✅ | — |
+| Windows | 3.10 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp310-cp310-win_amd64.whl` | ✅ | — |
+| Windows | 3.11 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp311-cp311-win_amd64.whl` | ✅ | — |
+| Windows | 3.12 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp312-cp312-win_amd64.whl` | ✅ | — |
+| Windows | 3.13 | cu124 | 2.6.0 | `gsplat-1.5.3+pt26cu124-cp313-cp313-win_amd64.whl` | ✅ | — |
+| Windows | 3.10 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp310-cp310-win_amd64.whl` | ✅ | — |
+| Windows | 3.11 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp311-cp311-win_amd64.whl` | ✅ | — |
+| Windows | 3.12 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp312-cp312-win_amd64.whl` | ✅ | — |
+| Windows | 3.13 | cu126 | 2.10.0 | `gsplat-1.5.3+pt210cu126-cp313-cp313-win_amd64.whl` | ✅ | — |
+| Windows | 3.10 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp310-cp310-win_amd64.whl` | ✅ | — |
+| Windows | 3.11 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp311-cp311-win_amd64.whl` | ✅ | — |
+| Windows | 3.12 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp312-cp312-win_amd64.whl` | ✅ | — |
+| Windows | 3.13 | cu128 | 2.10.0 | `gsplat-1.5.3+pt210cu128-cp313-cp313-win_amd64.whl` | ✅ | — |
 
-All wheels are built against PyTorch 2.7.0. Each wheel is ~20 MB. Total release size: ~560 MB.
+Each CUDA variant uses the latest available PyTorch on its index. Each wheel is ~20 MB. Total release size: ~560 MB.
 
 Legend: ✅ = tested and passed, — = not tested
 
@@ -91,9 +99,9 @@ Legend: ✅ = tested and passed, — = not tested
 
 | Configuration | Reason |
 |---------------|--------|
-| Windows + cu118 | Not currently built. Could be added in the future since PyTorch 2.7 does provide cu118 Windows wheels. |
+| Windows + cu118 | Not currently built. Could be added in the future since PyTorch does provide cu118 Windows wheels. |
 | Any OS + cu121 | Dropped by PyTorch 2.6+. The cu121 index silently redirects to cu124, which causes a mismatch. |
-| Any OS + PyTorch 2.6/2.5 | C++ ABI symbols change between PyTorch minor releases. Not GPU-tested. |
+| Mismatched PyTorch version | C++ ABI symbols change between PyTorch minor releases. A wheel built for one version will not work with another. |
 | Python 3.14 | PyTorch does not ship cp314 wheels yet. |
 | macOS + any CUDA | macOS does not support CUDA. |
 
@@ -126,7 +134,7 @@ In practice, the first Python version does a full compile (~14 min) and saves th
 
 ### Test jobs (28)
 
-Each of the 28 wheels is tested in its own CI job using PyTorch 2.7.0 installed from the matching CUDA index. There are no backward compatibility tests because older PyTorch versions are not supported (see [Single PyTorch build version](#single-pytorch-build-version)).
+Each of the 28 wheels is tested in its own CI job using the matching PyTorch version installed from the matching CUDA index (see [PyTorch versions per CUDA index](#pytorch-versions-per-cuda-index)).
 
 ### Smoke test suite
 

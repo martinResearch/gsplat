@@ -78,9 +78,11 @@ PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 # not GPU-tested).
 #
 # When --torch is not specified, ALL versions below are tested (full matrix).
-# Use --torch 2.7.0 to test only the build version for a quicker run.
+# Each CUDA variant uses the latest available PyTorch on its index.
 TORCH_CUDA_MATRIX = {
-    "2.7.0": {"cuda": ["cu118", "cu124", "cu126", "cu128"], "max_python": "3.13"},
+    "2.7.1": {"cuda": ["cu118"], "max_python": "3.13"},
+    "2.6.0": {"cuda": ["cu124"], "max_python": "3.13"},
+    "2.10.0": {"cuda": ["cu126", "cu128"], "max_python": "3.13"},
 }
 
 EXPECTED_SYMBOLS = [
