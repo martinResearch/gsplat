@@ -124,6 +124,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Set DISTUTILS_USE_SDK for Windows
+        if: runner.os == 'Windows'
+        run: echo "DISTUTILS_USE_SDK=1" >> "$GITHUB_ENV"
+        shell: bash
+
       # ---- Python 3.10 (full compile — saves .o/.obj for reuse) ----
       - uses: actions/setup-python@v5
         with:
