@@ -107,7 +107,7 @@ Legend: ✅ = tested and passed, — = not tested
 
 ### Coverage gaps
 
-All 28 configurations pass the CI smoke tests. However, there is a gap in GPU-level testing:
+All 28 configurations (7 build jobs × 4 Python versions) pass the CI smoke tests on both Linux and Windows. However, there is a gap in GPU-level testing:
 
 - **Linux**: No local Linux GPU test machine was available, so all 16 Linux configurations have not been GPU-tested. They pass the CI smoke tests (symbol check, imports, ABI) but have not been validated with actual CUDA kernel execution.
 - **Windows cu128**: The 4 Windows cu128 configurations have not been GPU-tested locally yet (CI smoke tests pass).
@@ -167,7 +167,7 @@ Each test job runs the following checks (without requiring a GPU):
 
 - **`.github/workflows/building.yml`** — Completely rewritten to implement the 7-job build matrix with object reuse and the 28-job test matrix.
 
-- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.0).
+- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.1). The cu128 Windows installer was updated from 12.8.0 (570.86) to 12.8.1 (572.61) because the 12.8.0 installer is incompatible with the `windows-2022` GitHub runner image.
 - **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added environment variables for cu126 and cu128.
 
 - **`.github/workflows/publish.yml`** — Updated the artifact download pattern and now uses `${{ github.repository }}` for compatibility with forks.
@@ -180,7 +180,7 @@ Each test job runs the following checks (without requiring a GPU):
 
 ## Windows build fixes
 
-Six issues had to be fixed to make Windows wheel building work with PyTorch 2.7:
+Nine issues had to be fixed to make Windows wheel building work:
 
 1. **CUDA_HOME stale cache** — PyTorch's `_find_cuda_home()` caches the `CUDA_HOME` path at import time. If the environment variable changes after import, PyTorch still uses the old value. Our `setup.py` now force-refreshes `torch.utils.cpp_extension.CUDA_HOME` from the current environment before building.
 
@@ -193,6 +193,12 @@ Six issues had to be fixed to make Windows wheel building work with PyTorch 2.7:
 5. **PyTorch `Parallel.h` incompatibility** — A `static constexpr` usage in PyTorch's `Parallel.h` header is incompatible with MSVC on `windows-2022` CI runners. The build script patches this header before compiling.
 
 6. **`.lib` files in `extra_objects`** — When reusing precompiled objects on Windows, the `precompiled/` directory may contain `.lib` files alongside `.obj` files. `CUDAExtension` does not accept `.lib` files as extra objects, so `setup.py` filters them out.
+
+7. **`DISTUTILS_USE_SDK` not set** — When using `ilammy/msvc-dev-cmd@v1` to activate the MSVC environment, PyTorch's `cpp_extension.py` requires `DISTUTILS_USE_SDK=1` to be set. Without it, the build fails with a `UserWarning` about multiple VC environment activations. The workflow now exports this variable after the MSVC setup step.
+
+8. **Git `link.exe` shadows MSVC `link.exe`** — The `windows-2022` runner has Git's `link.exe` at `C:\Program Files\Git\usr\bin\link.exe`, which shadows MSVC's linker on the PATH. This causes the link step to fail with exit code 1. The workflow renames Git's `link.exe` to `link_git.exe` before building.
+
+9. **CUDA 12.8.0 installer incompatible with runner image** — The CUDA 12.8.0 installer (`cuda_12.8.0_570.86_windows.exe`) fails on the `windows-2022` GitHub runner with "This version of %1 is not compatible with the version of Windows you're running". Updated to CUDA 12.8.1 (`cuda_12.8.1_572.61_windows.exe`) which works correctly.
 
 ## Limitations and future work
 
