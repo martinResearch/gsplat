@@ -167,7 +167,7 @@ Each test job runs the following checks (without requiring a GPU):
 
 - **`.github/workflows/building.yml`** — Completely rewritten to implement the 7-job build matrix with object reuse and the 28-job test matrix.
 
-- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.1). The cu128 Windows installer was updated from 12.8.0 (570.86) to 12.8.1 (572.61) because the 12.8.0 installer is incompatible with the `windows-2022` GitHub runner image.
+- **`.github/workflows/cuda/{Linux,Windows}.sh`** — Added cases for cu126 (CUDA 12.6.3) and cu128 (CUDA 12.8.0 on Linux, 12.8.1 on Windows). The cu128 Windows installer was updated from 12.8.0 (570.86) to 12.8.1 (572.61) because the 12.8.0 installer is incompatible with the `windows-2022` GitHub runner image.
 - **`.github/workflows/cuda/{Linux,Windows}-env.sh`** — Added environment variables for cu126 and cu128.
 
 - **`.github/workflows/publish.yml`** — Updated the artifact download pattern and now uses `${{ github.repository }}` for compatibility with forks.
