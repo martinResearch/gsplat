@@ -87,18 +87,29 @@ TORCH_CUDA_MATRIX = {
 
 EXPECTED_SYMBOLS = [
     "null",
-    "quat_scale_to_covar_preci_fwd", "quat_scale_to_covar_preci_bwd",
-    "spherical_harmonics_fwd", "spherical_harmonics_bwd",
-    "adam", "relocation",
-    "intersect_tile", "intersect_offset",
-    "projection_ewa_simple_fwd", "projection_ewa_simple_bwd",
-    "projection_ewa_3dgs_fused_fwd", "projection_ewa_3dgs_fused_bwd",
-    "projection_ewa_3dgs_packed_fwd", "projection_ewa_3dgs_packed_bwd",
-    "rasterize_to_pixels_3dgs_fwd", "rasterize_to_pixels_3dgs_bwd",
+    "quat_scale_to_covar_preci_fwd",
+    "quat_scale_to_covar_preci_bwd",
+    "spherical_harmonics_fwd",
+    "spherical_harmonics_bwd",
+    "adam",
+    "relocation",
+    "intersect_tile",
+    "intersect_offset",
+    "projection_ewa_simple_fwd",
+    "projection_ewa_simple_bwd",
+    "projection_ewa_3dgs_fused_fwd",
+    "projection_ewa_3dgs_fused_bwd",
+    "projection_ewa_3dgs_packed_fwd",
+    "projection_ewa_3dgs_packed_bwd",
+    "rasterize_to_pixels_3dgs_fwd",
+    "rasterize_to_pixels_3dgs_bwd",
     "rasterize_to_indices_3dgs",
-    "projection_2dgs_fused_fwd", "projection_2dgs_fused_bwd",
-    "projection_2dgs_packed_fwd", "projection_2dgs_packed_bwd",
-    "rasterize_to_pixels_2dgs_fwd", "rasterize_to_pixels_2dgs_bwd",
+    "projection_2dgs_fused_fwd",
+    "projection_2dgs_fused_bwd",
+    "projection_2dgs_packed_fwd",
+    "projection_2dgs_packed_bwd",
+    "rasterize_to_pixels_2dgs_fwd",
+    "rasterize_to_pixels_2dgs_bwd",
     "rasterize_to_indices_2dgs",
     "projection_ut_3dgs_fused",
     "rasterize_to_pixels_from_world_3dgs_fwd",
@@ -106,8 +117,10 @@ EXPECTED_SYMBOLS = [
 ]
 
 EXPECTED_CLASSES = [
-    "CameraModelType", "ShutterType",
-    "UnscentedTransformParameters", "FThetaCameraDistortionParameters",
+    "CameraModelType",
+    "ShutterType",
+    "UnscentedTransformParameters",
+    "FThetaCameraDistortionParameters",
 ]
 
 
@@ -126,7 +139,10 @@ class TestCase:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def run(cmd: list[str], *, cwd: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
+
+def run(
+    cmd: list[str], *, cwd: str | None = None, check: bool = True
+) -> subprocess.CompletedProcess:
     print(f"  $ {' '.join(cmd)}")
     return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True)
 
@@ -134,7 +150,9 @@ def run(cmd: list[str], *, cwd: str | None = None, check: bool = True) -> subpro
 def find_uv() -> str:
     uv = shutil.which("uv")
     if not uv:
-        print("ERROR: 'uv' not found. Install it: https://docs.astral.sh/uv/getting-started/installation/")
+        print(
+            "ERROR: 'uv' not found. Install it: https://docs.astral.sh/uv/getting-started/installation/"
+        )
         sys.exit(1)
     return uv
 
@@ -148,7 +166,16 @@ def download_wheels_from_ci(run_id: str, dest_dir: str) -> None:
 
     print(f"Downloading wheels from CI run {run_id} to {dest_dir}...")
     result = run(
-        [gh, "run", "download", run_id, "--pattern", "compiled_wheels-*", "--dir", dest_dir],
+        [
+            gh,
+            "run",
+            "download",
+            run_id,
+            "--pattern",
+            "compiled_wheels-*",
+            "--dir",
+            dest_dir,
+        ],
         check=False,
     )
     if result.returncode != 0:
@@ -300,6 +327,7 @@ def build_smoke_test_script(test_gpu: bool, full_tests: bool, repo_root: str) ->
 # Main
 # ---------------------------------------------------------------------------
 
+
 def run_test_case(
     uv: str,
     case: TestCase,
@@ -322,7 +350,9 @@ def run_test_case(
         print(f"\n[1/5] Creating venv with Python {case.python}...")
         result = run([uv, "venv", venv_dir, "--python", case.python, "-q"], check=False)
         if result.returncode != 0:
-            print(f"  SKIP: Python {case.python} not available ({result.stderr.strip()})")
+            print(
+                f"  SKIP: Python {case.python} not available ({result.stderr.strip()})"
+            )
             return True  # Not a failure, just skipped
 
         # Determine pip/python paths
@@ -337,22 +367,40 @@ def run_test_case(
         max_retries = 3
         for attempt in range(1, max_retries + 1):
             result = run(
-                [uv, "pip", "install", "--python", venv_python,
-                 f"torch=={case.torch}", "--extra-index-url", torch_url, "-q"],
+                [
+                    uv,
+                    "pip",
+                    "install",
+                    "--python",
+                    venv_python,
+                    f"torch=={case.torch}",
+                    "--extra-index-url",
+                    torch_url,
+                    "-q",
+                ],
                 check=False,
             )
             if result.returncode == 0:
                 break
             stderr = result.stderr or ""
             # Retry on transient errors (I/O, network, extraction)
-            if attempt < max_retries and any(s in stderr for s in [
-                "I/O operation", "extraction", "ConnectionError",
-                "IncompleteRead", "ChunkedEncodingError", "timeout",
-            ]):
+            if attempt < max_retries and any(
+                s in stderr
+                for s in [
+                    "I/O operation",
+                    "extraction",
+                    "ConnectionError",
+                    "IncompleteRead",
+                    "ChunkedEncodingError",
+                    "timeout",
+                ]
+            ):
                 print(f"  Retry {attempt}/{max_retries}: transient error, retrying...")
                 continue
             # Non-retryable failure — treat as skip
-            print(f"  SKIP: PyTorch {case.torch}+{case.cuda} not available for Python {case.python}")
+            print(
+                f"  SKIP: PyTorch {case.torch}+{case.cuda} not available for Python {case.python}"
+            )
             if stderr:
                 for line in stderr.strip().split("\n")[:3]:
                     print(f"    {line}")
@@ -365,10 +413,14 @@ def run_test_case(
             # Wheel names look like: gsplat-1.5.3+pt27cu124-cp312-cp312-win_amd64.whl
             py_tag = f"cp{case.python.replace('.', '')}"
             ver_glob = f"-{version}+" if version else "-*"
-            wheel_files = list(Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*{py_tag}*.whl"))
+            wheel_files = list(
+                Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*{py_tag}*.whl")
+            )
             if not wheel_files:
                 # Fallback: match just CUDA tag without Python filter
-                wheel_files = list(Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*.whl"))
+                wheel_files = list(
+                    Path(wheel_dir).glob(f"gsplat{ver_glob}*{case.cuda}*.whl")
+                )
             if not wheel_files:
                 print(f"  SKIP: No wheel found for {case.cuda} in {wheel_dir}")
                 return True
@@ -384,13 +436,24 @@ def run_test_case(
             # source-only package (which lacks compiled extensions).
             pkg_spec = f"gsplat=={version}" if version else "gsplat"
             result = run(
-                [uv, "pip", "install", "--python", venv_python,
-                 pkg_spec, "--index-url", index_url,
-                 "--no-deps", "-q"],
+                [
+                    uv,
+                    "pip",
+                    "install",
+                    "--python",
+                    venv_python,
+                    pkg_spec,
+                    "--index-url",
+                    index_url,
+                    "--no-deps",
+                    "-q",
+                ],
                 check=False,
             )
         else:
-            print("  ERROR: need --wheel-dir, --index-url, --index-base-url, or --gh-run-id")
+            print(
+                "  ERROR: need --wheel-dir, --index-url, --index-base-url, or --gh-run-id"
+            )
             return False
 
         if result.returncode != 0:
@@ -402,7 +465,14 @@ def run_test_case(
 
         # 4. Install test dependencies
         print(f"\n[4/5] Installing test dependencies...")
-        deps = ["numpy", "jaxtyping", "typing_extensions", "packaging", "rich", "setuptools"]
+        deps = [
+            "numpy",
+            "jaxtyping",
+            "typing_extensions",
+            "packaging",
+            "rich",
+            "setuptools",
+        ]
         if full_tests:
             deps += ["pytest", "rich"]
         run(
@@ -431,8 +501,15 @@ def run_test_case(
             print(f"\n[bonus] Running pytest tests/test_basic.py...")
             test_dir = os.path.join(repo_root, "tests")
             result = run(
-                [venv_python, "-m", "pytest", os.path.join(test_dir, "test_basic.py"),
-                 "-x", "-v", "--tb=short"],
+                [
+                    venv_python,
+                    "-m",
+                    "pytest",
+                    os.path.join(test_dir, "test_basic.py"),
+                    "-x",
+                    "-v",
+                    "--tb=short",
+                ],
                 check=False,
             )
             print(result.stdout)
@@ -454,32 +531,51 @@ def main():
     )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--wheel-dir", help="Directory containing .whl files")
-    source.add_argument("--gh-run-id",
-                        help="GitHub Actions run ID — downloads wheel artifacts automatically "
-                             "(requires `gh` CLI authenticated)")
-    source.add_argument("--index-url",
-                        help="PEP 503 index URL for a single CUDA variant, e.g. "
-                             "https://martinresearch.github.io/gsplat/whl/pt27cu124/")
-    source.add_argument("--index-base-url",
-                        help="Base URL of wheel index; CUDA variant is appended automatically "
-                             "per test case (e.g. https://martinresearch.github.io/gsplat/whl)")
+    source.add_argument(
+        "--gh-run-id",
+        help="GitHub Actions run ID — downloads wheel artifacts automatically "
+        "(requires `gh` CLI authenticated)",
+    )
+    source.add_argument(
+        "--index-url",
+        help="PEP 503 index URL for a single CUDA variant, e.g. "
+        "https://martinresearch.github.io/gsplat/whl/pt27cu124/",
+    )
+    source.add_argument(
+        "--index-base-url",
+        help="Base URL of wheel index; CUDA variant is appended automatically "
+        "per test case (e.g. https://martinresearch.github.io/gsplat/whl)",
+    )
 
     parser.add_argument("--python", help="Specific Python version (e.g., 3.12)")
-    parser.add_argument("--torch", help="Specific PyTorch version to test (e.g., 2.7.0). "
-                        "If omitted, tests all versions in the matrix.")
-    parser.add_argument("--cuda", help="Specific CUDA variant (cu118, cu124, cu126, or cu128)")
-    parser.add_argument("--version", help="gsplat version to install (e.g., 1.5.3). "
-                        "Defaults to latest available.")
-    parser.add_argument("--no-gpu", action="store_true", help="Skip GPU tests (smoke test only)")
-    parser.add_argument("--full-tests", action="store_true",
-                        help="Also run pytest tests/test_basic.py (requires GPU)")
+    parser.add_argument(
+        "--torch",
+        help="Specific PyTorch version to test (e.g., 2.7.0). "
+        "If omitted, tests all versions in the matrix.",
+    )
+    parser.add_argument(
+        "--cuda", help="Specific CUDA variant (cu118, cu124, cu126, or cu128)"
+    )
+    parser.add_argument(
+        "--version",
+        help="gsplat version to install (e.g., 1.5.3). "
+        "Defaults to latest available.",
+    )
+    parser.add_argument(
+        "--no-gpu", action="store_true", help="Skip GPU tests (smoke test only)"
+    )
+    parser.add_argument(
+        "--full-tests",
+        action="store_true",
+        help="Also run pytest tests/test_basic.py (requires GPU)",
+    )
 
     args = parser.parse_args()
 
     # Auto-detect --cuda from --index-url if not explicitly set
     # e.g. https://martinresearch.github.io/gsplat/whl/pt27cu124/ -> cu124
     if args.index_url and not args.cuda:
-        m = re.search(r'(cu\d{3,4})/?$', args.index_url.rstrip('/'))
+        m = re.search(r"(cu\d{3,4})/?$", args.index_url.rstrip("/"))
         if m:
             args.cuda = m.group(1)
             print(f"Auto-detected --cuda {args.cuda} from index URL")
@@ -509,7 +605,9 @@ def main():
         group = by_torch[tv]
         cudas = sorted(set(c.cuda for c in group))
         pythons = sorted(set(c.python for c in group))
-        print(f"  torch {tv}: Python {', '.join(pythons)} × CUDA {', '.join(cudas)} ({len(group)} tests)")
+        print(
+            f"  torch {tv}: Python {', '.join(pythons)} × CUDA {', '.join(cudas)} ({len(group)} tests)"
+        )
     print()
 
     results: dict[str, str] = {}

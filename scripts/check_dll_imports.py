@@ -23,7 +23,9 @@ def find_vs_dumpbin():
     try:
         result = subprocess.run(
             [vswhere, "-latest", "-property", "installationPath"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         vs_path = result.stdout.strip()
         # Look for dumpbin in MSVC tools
@@ -41,6 +43,7 @@ def parse_pe_imports(pyd_path):
     imports = {}
     try:
         import pefile
+
         pe = pefile.PE(pyd_path)
         for entry in pe.DIRECTORY_ENTRY_IMPORT:
             dll_name = entry.dll.decode()
@@ -58,7 +61,8 @@ def parse_pe_imports(pyd_path):
         if dumpbin:
             result = subprocess.run(
                 [dumpbin, "/IMPORTS", pyd_path],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             current_dll = None
             for line in result.stdout.splitlines():
@@ -66,7 +70,12 @@ def parse_pe_imports(pyd_path):
                 if line.endswith(".dll") or line.endswith(".DLL"):
                     current_dll = line
                     imports[current_dll] = []
-                elif current_dll and line and not line.startswith("Section") and not line.startswith("Microsoft"):
+                elif (
+                    current_dll
+                    and line
+                    and not line.startswith("Section")
+                    and not line.startswith("Microsoft")
+                ):
                     # Import lines look like "  1A3  some_symbol_name"
                     parts = line.split(None, 1)
                     if len(parts) == 2 and parts[0].isalnum():
@@ -81,8 +90,9 @@ def check_dll_exports(dll_path):
     exports = set()
     try:
         import pefile
+
         pe = pefile.PE(dll_path)
-        if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT'):
+        if hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
             for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
                 if exp.name:
                     exports.add(exp.name.decode())
@@ -92,7 +102,8 @@ def check_dll_exports(dll_path):
         if dumpbin:
             result = subprocess.run(
                 [dumpbin, "/EXPORTS", dll_path],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             for line in result.stdout.splitlines():
                 parts = line.strip().split()
@@ -108,6 +119,7 @@ def main():
 
     try:
         import torch
+
         print(f"PyTorch: {torch.__version__}")
         print(f"CUDA: {torch.version.cuda}")
         torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
@@ -128,6 +140,7 @@ def main():
     # Find the .pyd
     try:
         import gsplat
+
         gsplat_dir = os.path.dirname(gsplat.__file__)
         pyd_path = os.path.join(gsplat_dir, "csrc.pyd")
         print(f"PYD path: {pyd_path}")
@@ -145,7 +158,9 @@ def main():
         import pefile
     except ImportError:
         print("Installing pefile for PE analysis...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "pefile", "-q"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "pefile", "-q"], check=True
+        )
         import pefile
 
     # Parse imports from the .pyd
@@ -175,7 +190,7 @@ def main():
 
         pe_dll = pefile.PE(dll_path)
         exported = set()
-        if hasattr(pe_dll, 'DIRECTORY_ENTRY_EXPORT'):
+        if hasattr(pe_dll, "DIRECTORY_ENTRY_EXPORT"):
             for exp in pe_dll.DIRECTORY_ENTRY_EXPORT.symbols:
                 if exp.name:
                     exported.add(exp.name.decode())

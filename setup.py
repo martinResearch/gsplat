@@ -56,10 +56,13 @@ def get_extensions():
         sources = [osp.join(extensions_dir, "ext.cpp")]
         for ext in ("*.o", "*.obj"):
             extra_objects += glob.glob(osp.join(PRECOMPILED_OBJECTS_DIR, ext))
-        extra_objects = [o for o in extra_objects
-                         if osp.basename(o) not in ("ext.o", "ext.obj")]
-        print(f"[setup.py] Reusing {len(extra_objects)} pre-compiled objects "
-              f"from {PRECOMPILED_OBJECTS_DIR}")
+        extra_objects = [
+            o for o in extra_objects if osp.basename(o) not in ("ext.o", "ext.obj")
+        ]
+        print(
+            f"[setup.py] Reusing {len(extra_objects)} pre-compiled objects "
+            f"from {PRECOMPILED_OBJECTS_DIR}"
+        )
     else:
         sources = glob.glob(osp.join(extensions_dir, "csrc", "*.cu")) + glob.glob(
             osp.join(extensions_dir, "csrc", "*.cpp")

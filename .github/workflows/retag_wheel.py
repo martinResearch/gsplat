@@ -61,9 +61,7 @@ def retag_wheel(whl_path: str, python_tags: list[str]) -> str:
         platform = m.group(1)
         return "\n".join(f"Tag: {t}-{t}-{platform}" for t in python_tags)
 
-    content = re.sub(
-        rf"Tag: {build_tag}-{build_tag}-(\S+)", expand_tag, content
-    )
+    content = re.sub(rf"Tag: {build_tag}-{build_tag}-(\S+)", expand_tag, content)
 
     with open(wheel_file, "w") as f:
         f.write(content)
@@ -88,9 +86,7 @@ def retag_wheel(whl_path: str, python_tags: list[str]) -> str:
                 .decode()
             )
             records.append(f"{arcname},sha256={digest},{len(data)}")
-    records.append(
-        os.path.relpath(record_path, tmp).replace(os.sep, "/") + ",,"
-    )
+    records.append(os.path.relpath(record_path, tmp).replace(os.sep, "/") + ",,")
     with open(record_path, "w") as f:
         f.write("\n".join(records) + "\n")
 
